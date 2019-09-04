@@ -473,7 +473,8 @@ def WaitForEvent():
                     return
         time.sleep(0.2)
 
-def main(threadName, *args):
+def main(threadName, args):
+    lg.info("camera capture in :"+str(args.width)+"x"+str(args.height))
     setup_pygame(environment)
     InitFolder(environment)
     setup_rpi_gpio(environment)
@@ -485,13 +486,14 @@ def main(threadName, *args):
         TakePictures(environment)
     GPIO.cleanup()
 
-# launch the main thread
-Thread(target=main, args=('Main', 1)).start()
 
 
-def my_main(args):
+def my_main(main_args):
     """Main function."""
     #
+    # launch the main thread
+    Thread(target=main, args=('Main', main_args)).start()
+
 def parse_arguments():
     """Parse arguments function."""
     parser = argparse.ArgumentParser(
@@ -509,6 +511,18 @@ def parse_arguments():
         help="number of time to print the message, default:1",
         type=int,
         default=1
+    )
+    parser.add_argument(
+        '-a', '--height',
+        help="camera width capture, default:1",
+        type=int,
+        default=1080
+    )
+    parser.add_argument(
+        '-b', '--width',
+        help="camera width capture, default:1",
+        type=int,
+        default=1920
     )
     parser.add_argument(
         "-v", "--verbose",
