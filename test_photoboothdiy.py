@@ -72,9 +72,9 @@ GPIO.setup(BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 # initialise pygame
 pygame.init()  # Initialise pygame
-screen = pygame.display.set_mode((infoObject.current_w,infoObject.current_h), pygame.FULLSCREEN)  # Full screen 
 pygame.mouse.set_visible(False) #hide the mouse cursor
 infoObject = pygame.display.Info()
+screen = pygame.display.set_mode((infoObject.current_w,infoObject.current_h), pygame.FULLSCREEN)  # Full screen
 background = pygame.Surface(screen.get_size())  # Create the background object
 background = background.convert()  # Convert it to a background
 
