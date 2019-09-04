@@ -22,6 +22,8 @@
 #pip install pip-autoremove
 ## remove "somepackage" plus its dependencies:
 #pip-autoremove somepackage -y
+#Live debugging thanks to :
+#import pdb; pdb.set_trace()
 
 #it can be needed to launch python in root and export :
 #export DISPLAY=0:0; sudo ./yourpythonscript.py
@@ -40,7 +42,7 @@ from pygame.locals import *
 from time import sleep
 from PIL import Image, ImageDraw
 
-TMP_PRINT_PATH = "/tmp/tempprint.jpg"
+TMP_PRINT_PATH = "/tmp/tempprint.png"
 
 # initialise global variables
 Numeral = ""  # Numeral is the number display
@@ -325,7 +327,7 @@ def CapturePicture():
     UpdateDisplay()
     imagecounter = imagecounter + 1
     ts = time.time()
-    filename = os.path.join(imagefolder, 'images', str(imagecounter)+"_"+str(ts) + '.jpg')
+    filename = os.path.join(imagefolder, 'images', str(imagecounter)+"_"+str(ts) + '.png')
     camera.capture(filename, resize=(IMAGE_WIDTH, IMAGE_HEIGHT))
     camera.stop_preview()
     ShowPicture(filename, 2)
@@ -371,7 +373,7 @@ def TakePictures():
     bgimage.paste(image3, (55, 410))
     # Create the final filename
     ts = time.time()
-    Final_Image_Name = os.path.join(imagefolder, "Final_" + str(TotalImageCount)+"_"+str(ts) + ".jpg")
+    Final_Image_Name = os.path.join(imagefolder, "Final_" + str(TotalImageCount)+"_"+str(ts) + ".png")
     # Save it to the usb drive
     bgimage.save(Final_Image_Name)
     # Save a temp file, its faster to print from the pi than usb
@@ -393,33 +395,33 @@ def TakePictures():
     Printing = False
     print(Printing)
     if Printing:
-            if (TotalImageCount <= PhotosPerCart):
-                    if os.path.isfile(TMP_PRINT_PATH):
-                            # Open a connection to cups
-                            conn = cups.Connection()
-                            # get a list of printers
-                            printers = conn.getPrinters()
-                            # select printer 0
-                            printer_name = printers.keys()[0]
-                            Message = "Impression en cours..."
-                            UpdateDisplay()
-                            time.sleep(1)
-                            # print the buffer file
-                            printqueuelength = len(conn.getJobs())
-                            if printqueuelength > 1:
-                                    ShowPicture(TMP_PRINT_PATH,3)
-                                    conn.enablePrinter(printer_name)
-                                    Message = "Impression impossible"                
-                                    UpdateDisplay()
-                                    time.sleep(1)
-                            else:
-                                    conn.printFile(printer_name, TMP_PRINT_PATH, "PhotoBooth", {})
-                                    time.sleep(40)            
-            else:
-                    Message = "Nous vous enverrons vos photos"
-                    Numeral = ""
+        if (TotalImageCount <= PhotosPerCart):
+            if os.path.isfile(TMP_PRINT_PATH):
+                # Open a connection to cups
+                conn = cups.Connection()
+                # get a list of printers
+                printers = conn.getPrinters()
+                # select printer 0
+                printer_name = printers.keys()[0]
+                Message = "Impression en cours..."
+                UpdateDisplay()
+                time.sleep(1)
+                # print the buffer file
+                printqueuelength = len(conn.getJobs())
+                if printqueuelength > 1:
+                    ShowPicture(TMP_PRINT_PATH,3)
+                    conn.enablePrinter(printer_name)
+                    Message = "Impression impossible"                
                     UpdateDisplay()
                     time.sleep(1)
+                else:
+                    conn.printFile(printer_name, TMP_PRINT_PATH, "PhotoBooth", {})
+                    time.sleep(40)            
+        else:
+                Message = "Nous vous enverrons vos photos"
+                Numeral = ""
+                UpdateDisplay()
+                time.sleep(1)
             
     Message = ""
     Numeral = ""
