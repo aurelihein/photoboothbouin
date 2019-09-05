@@ -39,6 +39,7 @@ import pygame
 import threading
 import time
 import os
+import glob
 import subprocess
 import PIL.Image
 #import cups
@@ -71,17 +72,24 @@ TotalImageCount = 0  # Counter for Display and to monitor paper usage
 PhotosPerCart = 30  # Selphy takes 16 sheets per tray
 imagecounter = 0
 
+def get_all_montages(environment):
+    """Get all montages files"""
+    #return subprocess.check_output("ls -lat "+str(environment["output_montages_photos_folder"])+" | grep -v d | awk '{print $9}'", shell=True)
+    files = list(filter(os.path.isfile, glob.glob(environment["output_montages_photos_folder"] + "/*")))
+    files.sort(key=lambda x: os.path.getmtime(x))
+    return files
+
 def init_environment():
     """Function that initialize environment"""
     environment = {}
     environment["start_picture_filename"] = '/tmp/start_camera.jpg'
     environment["original_start_picture_filename"] = 'images/start_camera.jpg'
-    environment["output_photos_folder"] = "output_photos"
+    environment["output_photos_folder"] = "output_photos/singles_photos"
     environment["output_montages_photos_folder"] = "output_photos/montages"
     environment["tmp_photo_print_path"] = "/tmp/tempprint.png"
     environment["template_path"] = "images/template.png"
     environment["last_taken_picture_path"] = None
-    result = subprocess.check_output("ls -lat "+str(environment["output_montages_photos_folder"])+"  | head -2 | tail -1 | awk '{print $9}'", shell=True)
+    result = subprocess.check_output("ls -lat "+str(environment["output_montages_photos_folder"])+" | head -2 | tail -1 | awk '{print $9}'", shell=True)
     if result:
         environment["last_taken_picture_path"]=environment["output_montages_photos_folder"]+"/"+result.rstrip()
 
@@ -373,9 +381,14 @@ def print_event(value):
         return
     print("EVENT_NO_TYPE:"+str(value))
 
-def wait_for_event(environment):
-    global pygame
-    while True:
+def wait_for_event(environment, during_seconds):
+    """Wait for BP events"""
+
+    if not during_seconds :
+        loop = True
+    else:
+        loop = int(during_seconds)*10
+    while loop:
         if not GPIO.input(environment["bp_to_launch_browse_pictures"]):
             return EVENT_TYPE_BROWSE_PICTURES
         if not GPIO.input(environment["bp_to_launch_take_picture"]):
@@ -400,6 +413,8 @@ def wait_for_event(environment):
                     return EVENT_TYPE_STOP
                 elif event.key == pygame.K_DOWN:
                     return EVENT_TYPE_TAKE_PICTURE
+        if not bool(loop) :
+            loop += 1
         time.sleep(0.1)
     return EVENT_NO_TYPE
 
@@ -413,10 +428,14 @@ def wait_for_allow_printing_event(environment, seconds_to_wait):
             update_display(environment, "", "Appuyez sur le bouton pour imprimer", str(int(count_down_cent_milliseconds/10)+1), "", False)
         if not GPIO.input(environment["bp_to_launch_take_picture"]):
             return True
+        if not GPIO.input(environment["bp_to_restart"]):
+            return False
         for event in pygame.event.get():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_DOWN:
                     return True
+                if event.key == pygame.K_ESCAPE:
+                    return False
         time.sleep(0.1)
         count_down_cent_milliseconds -= 1
     return False
@@ -561,15 +580,37 @@ def show_last_picture(environment):
     else:
         lg.warning("No picture taken yet=>Take one !")
 
+SECONDS_TO_WAIT_IN_BROWSING_MODE = 5
+
 def browse_pictures(environment):
     """Function that handle the scenario take a picture"""
     lg.info("SCENARIO : Browse pictures")
+    all_montages_filename = get_all_montages(environment)
+    lg.info("all_montages_filename:"+str(all_montages_filename))
+    lg.info("len(all_montages_filename):"+str(len(all_montages_filename)))
+    pointer = len(all_montages_filename) - 1
+    event_get = EVENT_TYPE_BROWSE_PICTURES
+    while event_get != EVENT_NO_TYPE:
+        lg.info("pointer:"+str(pointer))
+        if pointer < 0:
+            pointer = 0
+        if pointer >= len(all_montages_filename):
+            pointer = len(all_montages_filename)-1
+        show_image(environment, all_montages_filename[pointer])
+        event_get = wait_for_event(environment, SECONDS_TO_WAIT_IN_BROWSING_MODE)
+        print_event(event_get)
+        if event_get == EVENT_TYPE_BROWSE_PICTURES:
+            pointer -= 1
+        elif event_get == EVENT_TYPE_SHOW_LAST_PICTURE:
+            pointer += 1
+        if event_get == EVENT_TYPE_TAKE_PICTURE or event_get == EVENT_TYPE_RESTART or event_get == EVENT_TYPE_STOP:
+            return
 
 def main_pygame(environment):
     creation_montage_start_screen(environment, environment["last_taken_picture_path"])
     while True:
         show_image(environment, environment["start_picture_filename"])
-        event_get = wait_for_event(environment)
+        event_get = wait_for_event(environment, 0)
         print_event(event_get)
         time.sleep(0.2)
         if event_get == EVENT_NO_TYPE:
