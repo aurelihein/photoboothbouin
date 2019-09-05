@@ -38,14 +38,24 @@ import picamera
 import pygame
 import time
 import os
+import subprocess
 import PIL.Image
 #import cups
 import RPi.GPIO as GPIO
+import threading
 
-from threading import Thread
 from pygame.locals import *
 from time import sleep
 from PIL import Image, ImageDraw
+
+EVENT_NO_TYPE = 0
+EVENT_TYPE_TAKE_PICTURE = 1
+EVENT_TYPE_SHOW_LAST_PICTURE = 2
+EVENT_TYPE_BROWSE_PICTURES = 3
+EVENT_TYPE_RESTART = 4
+EVENT_TYPE_STOP = 5
+
+SECONDS_TO_WAIT_TO_SHOW_PICTURE_READY_TO_PRINT = 5
 
 environment = {}
 
@@ -60,23 +70,32 @@ TotalImageCount = 0  # Counter for Display and to monitor paper usage
 PhotosPerCart = 30  # Selphy takes 16 sheets per tray
 imagecounter = 0
 
-environment["output_photos_folder"] = "output_photos"
-environment["output_montages_photos_folder"] = "output_photos/images"
-environment["tmp_photo_print_path"] = "/tmp/tempprint.png"
-environment["template_path"] = "images/template.png"
+def init_environment():
+    """Function that initialize environment"""
+    environment = {}
+    environment["output_photos_folder"] = "output_photos"
+    environment["output_montages_photos_folder"] = "output_photos/images"
+    environment["tmp_photo_print_path"] = "/tmp/tempprint.png"
+    environment["template_path"] = "images/template.png"
+    environment["last_taken_picture_path"] = None
+    result = subprocess.check_output("ls -lat "+str(environment["output_montages_photos_folder"])+"  | head -2 | tail -1 | awk '{print $9}'", shell=True)
+    if result:
+        environment["last_taken_picture_path"]=environment["output_montages_photos_folder"]+"/"+result.rstrip()
 
-#GPIO to use for the BP
-environment["bp_to_launch"] = 25
+    #GPIO to use for the BP
+    environment["bp_to_launch_take_picture"] = 25
 
-environment["camera_parameters"] = {}
-environment["camera_parameters"]["resolution"] = 1920, 1080
-environment["camera_parameters"]["rotation"] = 0
-environment["camera_parameters"]["hflip"] = True
-environment["camera_parameters"]["vflip"] = False
-environment["camera_parameters"]["brightness"] = 50
-environment["camera_parameters"]["preview_alpha"] = 120
-environment["camera_parameters"]["preview_fullscreen"] = True
-environment["camera_pointer"] = None
+    environment["camera_parameters"] = {}
+    environment["camera_parameters"]["resolution"] = 1920, 1080
+    environment["camera_parameters"]["rotation"] = 0
+    environment["camera_parameters"]["hflip"] = True
+    environment["camera_parameters"]["vflip"] = False
+    environment["camera_parameters"]["brightness"] = 50
+    environment["camera_parameters"]["preview_alpha"] = 120
+    environment["camera_parameters"]["preview_fullscreen"] = True
+    environment["camera_pointer"] = None
+
+    return environment
 
 ImageShowed = False
 Printing = False
@@ -90,7 +109,6 @@ def setup_pygame(environment):
     # Load the background template
 
     # initialise pygame
-    pygame.init()  # Initialise pygame
     pygame.mouse.set_visible(False) #hide the mouse cursor
 
     infoObject = pygame.display.Info()
@@ -113,8 +131,15 @@ def setup_pygame(environment):
     #update camera resolution ?!
     environment["camera_parameters"]["resolution"] = environment["screen_w"], environment["screen_h"]
 
+def unsetup_rpi_camera(environment):
+    """ Unset up RPI camera"""
+    if environment["camera_pointer"]:
+        environment["camera_pointer"].close()
+
 def setup_rpi_camera(environment):
+    """ Set up RPI camera"""
     environment["camera_pointer"] = picamera.PiCamera()
+    lg.info("We have initialized picamera")
     # Initialise the camera object
     environment["camera_pointer"].resolution = environment["camera_parameters"]["resolution"]
     environment["camera_pointer"].rotation = environment["camera_parameters"]["rotation"]
@@ -141,7 +166,7 @@ def setup_rpi_gpio(environment):
     """ The RPI GPIO setup"""
     #Setup GPIO for BP
     GPIO.setmode(GPIO.BCM)
-    GPIO.setup(environment["bp_to_launch"], GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    GPIO.setup(environment["bp_to_launch_take_picture"], GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 # A function to handle keyboard/mouse/device input events
 def input(events):
@@ -198,33 +223,44 @@ def InitFolder(environment):
         os.makedirs(environment["output_montages_photos_folder"])
 
 def UpdateDisplay(environment):
-    # init global variables from main thread
+    global BackgroundColor
     global Numeral
     global Message
-    global screen
-    global pygame
-    global ImageShowed
-    global screenPicture
     global CountDownPhoto
+    global ImageShowed
+
+    display_config = {}
+    display_config["background_color"] = BackgroundColor
+    display_config["message"] = Message
+    display_config["numeral"] = Numeral
+    display_config["count_down_photo"] = CountDownPhoto
+    display_config["image_showed"] = ImageShowed
+    update_display(environment, BackgroundColor, Message, Numeral, CountDownPhoto, ImageShowed)
+
+def update_display(environment, BackgroundColor, Message, Numeral, CountDownPhoto, ImageShowed):
 
     environment["background_screen_pointer"].fill(pygame.Color("white"))  # White background
 
-    if (BackgroundColor != ""):
+    if BackgroundColor != "":
         #print(BackgroundColor)
         environment["background_screen_pointer"].fill(pygame.Color("black"))
-    if (Message != ""):
+    if Message != "":
         #print(displaytext)
         font = pygame.font.Font(None, 100)
         text = font.render(Message, 1, (227, 157, 200))
         textpos = text.get_rect()
         textpos.centerx = environment["background_screen_pointer"].get_rect().centerx
         textpos.centery = environment["background_screen_pointer"].get_rect().centery
+        if Numeral != "":
+            textpos.centery -= 100
+        elif CountDownPhoto != "":
+            textpos.centery -= 200
         if(ImageShowed):
             environment["background_screen_picture_pointer"].blit(text, textpos)
         else:
             environment["background_screen_pointer"].blit(text, textpos)
 
-    if (Numeral != ""):
+    if Numeral != "":
         #print(displaytext)
         font = pygame.font.Font(None, 800)
         text = font.render(Numeral, 1, (227, 157, 200))
@@ -236,7 +272,7 @@ def UpdateDisplay(environment):
         else:
             environment["background_screen_pointer"].blit(text, textpos)
 
-    if (CountDownPhoto != ""):
+    if CountDownPhoto != "":
         #print(displaytext)
         font = pygame.font.Font(None, 500)
         text = font.render(CountDownPhoto, 1, (227, 157, 200))
@@ -248,7 +284,7 @@ def UpdateDisplay(environment):
         else:
             environment["background_screen_pointer"].blit(text, textpos)
 
-    if(ImageShowed == True):
+    if ImageShowed == True:
         environment["screen_picture_pointer"].blit(environment["background_screen_picture_pointer"], (0, 0))
     else:
         environment["screen_pointer"].blit(environment["background_screen_pointer"], (0, 0))
@@ -274,6 +310,7 @@ def ShowPicture(environment, file, delay):
 
 # display one image on screen
 def show_image(environment, image_path):
+    """Display an image on full screen"""
     environment["screen_pointer"].fill(pygame.Color("white")) # clear the screen
     img = pygame.image.load(image_path) # load the image
     img = img.convert()	
@@ -371,6 +408,7 @@ def TakePictures(environment):
     Final_Image_Name = os.path.join(environment["output_montages_photos_folder"], "Final_" + str(TotalImageCount)+"_"+str(ts) + ".png")
     # Save it to the usb drive
     background_image.save(Final_Image_Name)
+    environment["last_taken_picture_path"] = Final_Image_Name
     # Save a temp file, its faster to print from the pi than usb
     background_image.save(environment["tmp_photo_print_path"])
     ShowPicture(environment, environment["tmp_photo_print_path"], 3)
@@ -425,7 +463,7 @@ def TakePictures(environment):
 
 def MyCallback(environment, channel):
     global Printing
-    GPIO.remove_event_detect(environment["bp_to_launch"])
+    GPIO.remove_event_detect(environment["bp_to_launch_take_picture"])
     Printing = True
 
 def WaitForPrintingEvent(environment):
@@ -435,8 +473,8 @@ def WaitForPrintingEvent(environment):
     global Printing
     global pygame
     countDown = 5
-    GPIO.add_event_detect(environment["bp_to_launch"], GPIO.RISING)
-    GPIO.add_event_callback(environment["bp_to_launch"], MyCallback)
+    GPIO.add_event_detect(environment["bp_to_launch_take_picture"], GPIO.RISING)
+    GPIO.add_event_callback(environment["bp_to_launch_take_picture"], MyCallback)
     
     while Printing == False and countDown > 0:
         if Printing == True:
@@ -444,9 +482,9 @@ def WaitForPrintingEvent(environment):
         for event in pygame.event.get():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_DOWN:
-                    GPIO.remove_event_detect(environment["bp_to_launch"])
+                    GPIO.remove_event_detect(environment["bp_to_launch_take_picture"])
                     Printing = True
-                    return        
+                    return
         BackgroundColor = ""
         Numeral = str(countDown)
         Message = ""
@@ -454,45 +492,164 @@ def WaitForPrintingEvent(environment):
         countDown = countDown - 1
         time.sleep(1)
 
-    GPIO.remove_event_detect(environment["bp_to_launch"])
+    GPIO.remove_event_detect(environment["bp_to_launch_take_picture"])
 
-def WaitForEvent():
+def print_event(value):
+    """Print event value"""
+    if value == EVENT_TYPE_STOP:
+        print("EVENT_TYPE_STOP:"+str(value))
+        return
+    if value == EVENT_TYPE_TAKE_PICTURE:
+        print("EVENT_TYPE_TAKE_PICTURE:"+str(value))
+        return
+    if value == EVENT_TYPE_SHOW_LAST_PICTURE:
+        print("EVENT_TYPE_SHOW_LAST_PICTURE:"+str(value))
+        return
+    if value == EVENT_TYPE_BROWSE_PICTURES:
+        print("EVENT_TYPE_BROWSE_PICTURES:"+str(value))
+        return
+    if value == EVENT_TYPE_RESTART:
+        print("EVENT_TYPE_RESTART:"+str(value))
+        return
+    if value == EVENT_TYPE_STOP:
+        print("EVENT_TYPE_STOP:"+str(value))
+        return
+    print("EVENT_NO_TYPE:"+str(value))
+
+def WaitForEvent(environment):
     global pygame
     NotEvent = True
     while NotEvent:
-        input_state = GPIO.input(environment["bp_to_launch"])
-        if input_state == False:
-            NotEvent = False
-            return
+            input_state = GPIO.input(environment["bp_to_launch_take_picture"])
+            if input_state == False:
+                    NotEvent = False
+                    return
+            for event in pygame.event.get():
+                    if event.type == pygame.KEYDOWN:
+                        if event.key == pygame.K_ESCAPE:
+                            pygame.quit()
+                        if event.key == pygame.K_DOWN:
+                            NotEvent = False
+                            return
+            time.sleep(0.2)
+
+def wait_for_event(environment):
+    global pygame
+    while True:
+        if not GPIO.input(environment["bp_to_launch_take_picture"]):
+            return EVENT_TYPE_TAKE_PICTURE
         for event in pygame.event.get():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    pygame.quit()
-                if event.key == pygame.K_DOWN:
-                    NotEvent = False
-                    return
+                    return EVENT_TYPE_STOP
+                elif event.key == pygame.K_F1:
+                    return EVENT_TYPE_TAKE_PICTURE
+                elif event.key == pygame.K_F2:
+                    return EVENT_TYPE_SHOW_LAST_PICTURE
+                elif event.key == pygame.K_F3:
+                    return EVENT_TYPE_BROWSE_PICTURES
+                elif event.key == pygame.K_F4:
+                    return EVENT_TYPE_RESTART
+                elif event.key == pygame.K_F5:
+                    return EVENT_TYPE_STOP
+                elif event.key == pygame.K_DOWN:
+                    return EVENT_TYPE_TAKE_PICTURE
         time.sleep(0.2)
+    return EVENT_NO_TYPE
 
-def main(threadName, args):
-    lg.info("camera capture in :"+str(args.width)+"x"+str(args.height))
-    setup_pygame(environment)
-    InitFolder(environment)
-    setup_rpi_gpio(environment)
-    setup_rpi_camera(environment)
+def wait_for_allow_printing_event(environment, seconds_to_wait):
+    """Wait for button press to allow to print image"""
+
+    count_down_cent_milliseconds = seconds_to_wait*10
+    while count_down_cent_milliseconds:
+        if count_down_cent_milliseconds % 10:
+            update_display(environment, "", "Appuyez sur le bouton pour imprimer", "", str(int(count_down_cent_milliseconds/10)+1), False)
+        if not GPIO.input(environment["bp_to_launch_take_picture"]):
+            return EVENT_TYPE_TAKE_PICTURE
+        for event in pygame.event.get():
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_DOWN:
+                    return True
+        time.sleep(0.1)
+        count_down_cent_milliseconds -= 1
+    return False
+
+def take_a_picture(environment):
+    """Function that handle the scenario take a picture"""
+    lg.info("SCENARIO : Take a picture")
+    TakePictures(environment)
+
+def show_last_picture(environment):
+    """Function that handle the scenario take a picture"""
+    lg.info("SCENARIO : Show last picture")
+    if environment["last_taken_picture_path"]:
+        #ShowPicture(environment, environment["last_taken_picture_path"], SECONDS_TO_WAIT_TO_SHOW_PICTURE_READY_TO_PRINT)
+        ShowPicture(environment, environment["last_taken_picture_path"], 1)
+        wait_for_allow_printing_event(environment, 5)
+    else:
+        lg.warning("No picture taken yet=>Take one !")
+
+def browse_pictures(environment):
+    """Function that handle the scenario take a picture"""
+    lg.info("SCENARIO : Browse pictures")
+
+def main_pygame(environment):
+
     while True:
         show_image(environment, 'images/start_camera.jpg')
-        WaitForEvent()
+        #event_get = WaitForEvent(environment)
+        event_get = wait_for_event(environment)
+        print_event(event_get)
         time.sleep(0.2)
-        TakePictures(environment)
+        if event_get == EVENT_NO_TYPE:
+            lg.warning("No event ?!")
+        elif event_get == EVENT_TYPE_TAKE_PICTURE:
+            take_a_picture(environment)
+        elif event_get == EVENT_TYPE_SHOW_LAST_PICTURE:
+            show_last_picture(environment)
+        elif event_get == EVENT_TYPE_BROWSE_PICTURES:
+            browse_pictures(environment)
+        elif event_get == EVENT_TYPE_RESTART:
+            lg.info("Ask to restart the board")
+            return
+        elif event_get == EVENT_TYPE_STOP:
+            lg.critical("Ask to stop the application")
+            return
+        else:
+            lg.critical("We do not know the event : "+str(event_get))
+
     GPIO.cleanup()
 
+class LaunchThread(threading.Thread):
+    """ Class function that will handle running function in threading mode"""
+    def __init__(self, target, *args):
+        self.target = target
+        self.args = args
+        threading.Thread.__init__(self)
 
+    def run(self):
+        lg.info("!!!!!!!!!!!!!!!!! BEGIN !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        lg.info("Going to call in thread the function:"+str(self.target))
+        self.target(*self.args)
+        lg.info("!!!!!!!!!!!!!!!!!! END !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
 def my_main(main_args):
     """Main function."""
     #
     # launch the main thread
-    Thread(target=main, args=('Main', main_args)).start()
+
+    lg.info("camera capture in :"+str(main_args.width)+"x"+str(main_args.height))
+    pygame.init()  # Initialise pygame
+    environment = init_environment()
+    setup_pygame(environment)
+    InitFolder(environment)
+    setup_rpi_gpio(environment)
+    setup_rpi_camera(environment)
+    main_thread = LaunchThread(main_pygame, environment)
+    main_thread.start()
+    main_thread.join()
+    unsetup_rpi_camera(environment)
+    pygame.quit()
 
 def parse_arguments():
     """Parse arguments function."""
@@ -525,6 +682,12 @@ def parse_arguments():
         default=1920
     )
     parser.add_argument(
+        '-l', '--log',
+        help="logging output",
+        type=str,
+        default=None
+    )
+    parser.add_argument(
         "-v", "--verbose",
         action='store_true',
         help="""Make the application talk!"""
@@ -535,9 +698,13 @@ if __name__ == '__main__':
     try:
         # instruction qui risque de lever une erreur
         ARGUMENTS = parse_arguments()
+        #THE_DEBUG_FORMAT = '%(relativeCreated)6d %(threadName)s %(message)s'
+        THE_DEBUG_FORMAT = '%(asctime)s:%(levelname)s-%(message)s'
+        THE_DEBUG_FILENAME = ARGUMENTS.log
+        THE_DEBUG_LEVEL = lg.INFO
         if ARGUMENTS.verbose:
-            #warning by default
-            lg.basicConfig(level=lg.DEBUG)
+            THE_DEBUG_LEVEL = lg.DEBUG
+        lg.basicConfig(filename=THE_DEBUG_FILENAME, level=THE_DEBUG_LEVEL, format=THE_DEBUG_FORMAT)
         #import pdb; pdb.set_trace()
     except Exception as e_h:
         lg.error('If any exception occured ... here I AM ')
