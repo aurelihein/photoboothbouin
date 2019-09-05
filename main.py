@@ -36,13 +36,13 @@ import argparse
 import logging as lg
 import picamera
 import pygame
+import threading
 import time
 import os
 import subprocess
 import PIL.Image
 #import cups
 import RPi.GPIO as GPIO
-import threading
 
 from pygame.locals import *
 from time import sleep
@@ -82,13 +82,19 @@ def init_environment():
     if result:
         environment["last_taken_picture_path"]=environment["output_montages_photos_folder"]+"/"+result.rstrip()
 
-    #GPIO to use for the BP
-    environment["bp_to_launch_take_picture"] = 25
+    #GPIO to use for the BP browse pictures
+    environment["bp_to_launch_browse_pictures"] = 23
+    #GPIO to use for the BP take picture
+    environment["bp_to_launch_take_picture"] = 24
+    #GPIO to use for the BP show last picture
+    environment["bp_to_launch_show_last_picture"] = 25
+    #GPIO to use for restarting the system
+    environment["bp_to_restart"] = 26
 
     environment["camera_parameters"] = {}
     environment["camera_parameters"]["resolution"] = 1920, 1080
     environment["camera_parameters"]["rotation"] = 0
-    environment["camera_parameters"]["hflip"] = True
+    environment["camera_parameters"]["hflip"] = False
     environment["camera_parameters"]["vflip"] = False
     environment["camera_parameters"]["brightness"] = 50
     environment["camera_parameters"]["preview_alpha"] = 120
@@ -166,15 +172,10 @@ def setup_rpi_gpio(environment):
     """ The RPI GPIO setup"""
     #Setup GPIO for BP
     GPIO.setmode(GPIO.BCM)
+    GPIO.setup(environment["bp_to_launch_browse_pictures"], GPIO.IN, pull_up_down=GPIO.PUD_UP)
     GPIO.setup(environment["bp_to_launch_take_picture"], GPIO.IN, pull_up_down=GPIO.PUD_UP)
-
-# A function to handle keyboard/mouse/device input events
-def input(events):
-    for event in events:  # Hit the ESC key to quit the slideshow.
-        if (event.type == QUIT or
-                (event.type == KEYDOWN and event.key == K_ESCAPE)):
-            pygame.quit()
-
+    GPIO.setup(environment["bp_to_launch_show_last_picture"], GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    GPIO.setup(environment["bp_to_restart"], GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 # set variables to properly display the image on screen at right ratio
 def set_dimensions(environment, img_w, img_h):
@@ -208,12 +209,9 @@ def set_dimensions(environment, img_w, img_h):
         environment["replay_picture_scale_h"] = environment["screen_h"]
         offset_y = offset_x = 0
 
-def InitFolder(environment):
-    global Message
+def init_folders(environment):
 
-    Message = 'Folder Check...'
-    UpdateDisplay(environment)
-    Message = ''
+    update_display(environment, "", "Verification des dossiers", "", "", False)
 
     #check image folder existing, create if not exists
     if not os.path.isdir(environment["output_photos_folder"]):
@@ -252,7 +250,7 @@ def update_display(environment, BackgroundColor, Message, Numeral, CountDownPhot
         textpos.centerx = environment["background_screen_pointer"].get_rect().centerx
         textpos.centery = environment["background_screen_pointer"].get_rect().centery
         if Numeral != "":
-            textpos.centery -= 100
+            textpos.centery -= 300
         elif CountDownPhoto != "":
             textpos.centery -= 200
         if(ImageShowed):
@@ -302,7 +300,7 @@ def ShowPicture(environment, file, delay):
     # Make the image full screen
     img = pygame.transform.scale(img, environment["screen_picture_pointer"].get_size())
     #environment["background_screen_picture_pointer"].set_alpha(200)
-    environment["background_screen_picture_pointer"].blit(img, (0,0))
+    environment["background_screen_picture_pointer"].blit(img, (0, 0))
     environment["screen_pointer"].blit(environment["background_screen_picture_pointer"], (0, 0))
     pygame.display.flip()  # update the display
     ImageShowed = True
@@ -313,186 +311,12 @@ def show_image(environment, image_path):
     """Display an image on full screen"""
     environment["screen_pointer"].fill(pygame.Color("white")) # clear the screen
     img = pygame.image.load(image_path) # load the image
-    img = img.convert()	
+    img = img.convert()
     set_dimensions(environment, img.get_width(), img.get_height()) # set pixel dimensions based on image
     x = (environment["screen_w"] / 2) - (img.get_width() / 2)
     y = (environment["screen_h"] / 2) - (img.get_height() / 2)
     environment["screen_pointer"].blit(img, (x, y))
     pygame.display.flip()
-
-def CapturePicture(environment):
-    global imagecounter
-    global Numeral
-    global Message
-    global screen
-    global screenPicture
-    global pygame
-    global ImageShowed
-    global CountDownPhoto
-    global BackgroundColor
-
-    BackgroundColor = ""
-    Numeral = ""
-    Message = ""
-    UpdateDisplay(environment)
-    time.sleep(1)
-    CountDownPhoto = ""
-    UpdateDisplay(environment)
-    environment["background_screen_pointer"].fill(pygame.Color("black"))
-    environment["screen_pointer"].blit(environment["background_screen_pointer"], (0, 0))
-    pygame.display.flip()
-    environment["camera_pointer"].start_preview()
-    BackgroundColor = "black"
-
-    for x in range(3, -1, -1):
-        if x == 0:
-            Numeral = ""
-            Message = "PRENEZ LA POSE"
-        else:
-            Numeral = str(x)
-            Message = ""
-        UpdateDisplay(environment)
-        time.sleep(1)
-
-    BackgroundColor = ""
-    Numeral = ""
-    Message = ""
-    UpdateDisplay(environment)
-    imagecounter = imagecounter + 1
-    ts = time.time()
-    filename = os.path.join(environment["output_photos_folder"], str(imagecounter)+"_"+str(ts) + '.png')
-    environment["camera_pointer"].capture(filename, resize=(IMAGE_WIDTH, IMAGE_HEIGHT))
-    environment["camera_pointer"].stop_preview()
-    ShowPicture(environment, filename, 2)
-    ImageShowed = False
-    return filename
-
-def TakePictures(environment):
-    global imagecounter
-    global Numeral
-    global Message
-    global screen
-    global pygame
-    global ImageShowed
-    global CountDownPhoto
-    global BackgroundColor
-    global Printing
-    global PhotosPerCart
-    global TotalImageCount
-
-    input(pygame.event.get())
-    CountDownPhoto = "1/3"
-    filename1 = CapturePicture(environment)
-
-    CountDownPhoto = "2/3"
-    filename2 = CapturePicture(environment)
-
-    CountDownPhoto = "3/3"
-    filename3 = CapturePicture(environment)
-
-    CountDownPhoto = ""
-    Message = "Attendez svp..."
-    UpdateDisplay(environment)
-
-    image1 = PIL.Image.open(filename1)
-    image2 = PIL.Image.open(filename2)
-    image3 = PIL.Image.open(filename3)
-    TotalImageCount = TotalImageCount + 1
-
-    background_image = PIL.Image.open(environment["template_path"])
-    background_image.paste(image1, (625, 30))
-    background_image.paste(image2, (625, 410))
-    background_image.paste(image3, (55, 410))
-    # Create the final filename
-    ts = time.time()
-    Final_Image_Name = os.path.join(environment["output_montages_photos_folder"], "Final_" + str(TotalImageCount)+"_"+str(ts) + ".png")
-    # Save it to the usb drive
-    background_image.save(Final_Image_Name)
-    environment["last_taken_picture_path"] = Final_Image_Name
-    # Save a temp file, its faster to print from the pi than usb
-    background_image.save(environment["tmp_photo_print_path"])
-    ShowPicture(environment, environment["tmp_photo_print_path"], 3)
-    background_image2 = background_image.rotate(90)
-    background_image2.save(environment["tmp_photo_print_path"])
-    ImageShowed = False
-    Message = "Appuyez sur le bouton pour imprimer"
-    UpdateDisplay(environment)
-    time.sleep(1)
-    Message = ""
-    UpdateDisplay(environment)
-    Printing = False
-    WaitForPrintingEvent(environment)
-    Numeral = ""
-    Message = ""
-    print("Printing:"+str(Printing))
-    if Printing:
-        #Todo handle here
-        if (TotalImageCount <= PhotosPerCart) and ENABLE_PRINTING:
-            if os.path.isfile(environment["tmp_photo_print_path"]):
-                # Open a connection to cups
-                conn = cups.Connection()
-                # get a list of printers
-                printers = conn.getPrinters()
-                # select printer 0
-                printer_name = printers.keys()[0]
-                Message = "Impression en cours..."
-                UpdateDisplay(environment)
-                time.sleep(1)
-                # print the buffer file
-                printqueuelength = len(conn.getJobs())
-                if printqueuelength > 1:
-                    ShowPicture(environment, environment["tmp_photo_print_path"], 3)
-                    conn.enablePrinter(printer_name)
-                    Message = "Impression impossible"
-                    UpdateDisplay(environment)
-                    time.sleep(1)
-                else:
-                    conn.printFile(printer_name, environment["tmp_photo_print_path"], "PhotoBooth", {})
-                    time.sleep(40)
-        else:
-            Message = "Nous vous enverrons vos photos"
-            Numeral = ""
-            UpdateDisplay(environment)
-            time.sleep(1)
-            
-    Message = ""
-    Numeral = ""
-    ImageShowed = False
-    UpdateDisplay(environment)
-    time.sleep(1)
-
-def MyCallback(environment, channel):
-    global Printing
-    GPIO.remove_event_detect(environment["bp_to_launch_take_picture"])
-    Printing = True
-
-def WaitForPrintingEvent(environment):
-    global BackgroundColor
-    global Numeral
-    global Message
-    global Printing
-    global pygame
-    countDown = 5
-    GPIO.add_event_detect(environment["bp_to_launch_take_picture"], GPIO.RISING)
-    GPIO.add_event_callback(environment["bp_to_launch_take_picture"], MyCallback)
-    
-    while Printing == False and countDown > 0:
-        if Printing == True:
-            return
-        for event in pygame.event.get():
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_DOWN:
-                    GPIO.remove_event_detect(environment["bp_to_launch_take_picture"])
-                    Printing = True
-                    return
-        BackgroundColor = ""
-        Numeral = str(countDown)
-        Message = ""
-        UpdateDisplay(environment)
-        countDown = countDown - 1
-        time.sleep(1)
-
-    GPIO.remove_event_detect(environment["bp_to_launch_take_picture"])
 
 def print_event(value):
     """Print event value"""
@@ -516,28 +340,17 @@ def print_event(value):
         return
     print("EVENT_NO_TYPE:"+str(value))
 
-def WaitForEvent(environment):
-    global pygame
-    NotEvent = True
-    while NotEvent:
-            input_state = GPIO.input(environment["bp_to_launch_take_picture"])
-            if input_state == False:
-                    NotEvent = False
-                    return
-            for event in pygame.event.get():
-                    if event.type == pygame.KEYDOWN:
-                        if event.key == pygame.K_ESCAPE:
-                            pygame.quit()
-                        if event.key == pygame.K_DOWN:
-                            NotEvent = False
-                            return
-            time.sleep(0.2)
-
 def wait_for_event(environment):
     global pygame
     while True:
+        if not GPIO.input(environment["bp_to_launch_browse_pictures"]):
+            return EVENT_TYPE_BROWSE_PICTURES
         if not GPIO.input(environment["bp_to_launch_take_picture"]):
             return EVENT_TYPE_TAKE_PICTURE
+        if not GPIO.input(environment["bp_to_launch_show_last_picture"]):
+            return EVENT_TYPE_SHOW_LAST_PICTURE
+        if not GPIO.input(environment["bp_to_restart"]):
+            return EVENT_TYPE_RESTART
         for event in pygame.event.get():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
@@ -563,9 +376,10 @@ def wait_for_allow_printing_event(environment, seconds_to_wait):
     count_down_cent_milliseconds = seconds_to_wait*10
     while count_down_cent_milliseconds:
         if count_down_cent_milliseconds % 10:
-            update_display(environment, "", "Appuyez sur le bouton pour imprimer", "", str(int(count_down_cent_milliseconds/10)+1), False)
+            #update_display(environment, "", "Appuyez sur le bouton pour imprimer", "", str(int(count_down_cent_milliseconds/10)+1), False)
+            update_display(environment, "", "Appuyez sur le bouton pour imprimer", str(int(count_down_cent_milliseconds/10)+1), "", False)
         if not GPIO.input(environment["bp_to_launch_take_picture"]):
-            return EVENT_TYPE_TAKE_PICTURE
+            return True
         for event in pygame.event.get():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_DOWN:
@@ -574,18 +388,110 @@ def wait_for_allow_printing_event(environment, seconds_to_wait):
         count_down_cent_milliseconds -= 1
     return False
 
-def take_a_picture(environment):
+def print_picture(environment, filepath):
+    """Print the filepath picture"""
+    lg.info("Seems like printing has been asked")
+    #Todo handle here
+    if ENABLE_PRINTING:
+        if os.path.isfile(filepath):
+            # Open a connection to cups
+            conn = cups.Connection()
+            # get a list of printers
+            printers = conn.getPrinters()
+            # select printer 0
+            printer_name = printers.keys()[0]
+            update_display(environment, "", "Impression en cours...", "", "", False)
+            time.sleep(1)
+            # print the buffer file
+            printqueuelength = len(conn.getJobs())
+            if printqueuelength > 1:
+                ShowPicture(environment, filepath, 3)
+                conn.enablePrinter(printer_name)
+                update_display(environment, "", "!! Impression impossible !!", "", "", False)
+                time.sleep(1)
+                update_display(environment, "", "Nous vous enverrons vos photos...", "", "", False)
+                time.sleep(1)
+            else:
+                conn.printFile(printer_name, filepath, "PhotoBooth", {})
+                time.sleep(40)
+    else:
+        update_display(environment, "", "!! Impression desactivee !!", "", "", False)
+        time.sleep(1)
+        update_display(environment, "", "Nous vous enverrons vos photos...", "", "", False)
+        time.sleep(1)
+
+def take_a_picture(environment, part):
+
+    update_display(environment, "", "", "", str(part), False)
+    time.sleep(1)
+
+    update_display(environment, "", "", "", "", False)
+
+    environment["background_screen_pointer"].fill(pygame.Color("black"))
+    environment["screen_pointer"].blit(environment["background_screen_pointer"], (0, 0))
+    #To see you correctly ??
+    pygame.display.flip()
+    environment["camera_pointer"].start_preview()
+
+    for x in range(3, -1, -1):
+        if x == 0:
+            update_display(environment, "black", "PRENEZ LA POSE", "", "", False)
+        else:
+            update_display(environment, "black", "PREPAREZ VOUS A PRENDRE LA POSE", "", str(x), False)
+        time.sleep(1)
+
+    update_display(environment, "", "", "", "", False)
+    ts = time.time()
+    filename = os.path.join(environment["output_photos_folder"],str(ts)+'-photo.png')
+    environment["camera_pointer"].capture(filename, resize=(IMAGE_WIDTH, IMAGE_HEIGHT))
+    environment["camera_pointer"].stop_preview()
+    ShowPicture(environment, filename, 2)
+    return filename
+
+def take_pictures(environment):
     """Function that handle the scenario take a picture"""
-    lg.info("SCENARIO : Take a picture")
-    TakePictures(environment)
+    lg.info("SCENARIO : Take pictures")
+    filename1 = take_a_picture(environment, "1/3")
+    filename2 = take_a_picture(environment, "2/3")
+    filename3 = take_a_picture(environment, "3/3")
+
+    update_display(environment, "Montage en cours ...", "", "", "", False)
+
+    image1 = PIL.Image.open(filename1)
+    image2 = PIL.Image.open(filename2)
+    image3 = PIL.Image.open(filename3)
+
+    background_image = PIL.Image.open(environment["template_path"])
+    background_image.paste(image1, (625, 30))
+    background_image.paste(image2, (625, 410))
+    background_image.paste(image3, (55, 410))
+    # Create the final filename
+    ts = time.time()
+    Final_Image_Name = os.path.join(environment["output_montages_photos_folder"], str(ts)+"-montage.png")
+    # Save it to the usb drive
+    background_image.save(Final_Image_Name)
+    environment["last_taken_picture_path"] = Final_Image_Name
+    # Save a temp file, its faster to print from the pi than usb
+    background_image.save(environment["tmp_photo_print_path"])
+    ShowPicture(environment, environment["tmp_photo_print_path"], 3)
+    background_image2 = background_image.rotate(90)
+    background_image2.save(environment["tmp_photo_print_path"])
+
+    printing_asked = wait_for_allow_printing_event(environment, 5)
+    lg.info("printing_asked:"+str(printing_asked))
+    if printing_asked:
+        print_picture(environment, environment["last_taken_picture_path"])
 
 def show_last_picture(environment):
     """Function that handle the scenario take a picture"""
     lg.info("SCENARIO : Show last picture")
     if environment["last_taken_picture_path"]:
-        #ShowPicture(environment, environment["last_taken_picture_path"], SECONDS_TO_WAIT_TO_SHOW_PICTURE_READY_TO_PRINT)
-        ShowPicture(environment, environment["last_taken_picture_path"], 1)
-        wait_for_allow_printing_event(environment, 5)
+        ShowPicture(environment, environment["last_taken_picture_path"], SECONDS_TO_WAIT_TO_SHOW_PICTURE_READY_TO_PRINT)
+        #ShowPicture(environment, environment["last_taken_picture_path"], 1)
+        printing_asked = wait_for_allow_printing_event(environment, 5)
+        lg.info("printing_asked:"+str(printing_asked))
+        if printing_asked:
+            print_picture(environment, environment["last_taken_picture_path"])
     else:
         lg.warning("No picture taken yet=>Take one !")
 
@@ -597,14 +503,13 @@ def main_pygame(environment):
 
     while True:
         show_image(environment, 'images/start_camera.jpg')
-        #event_get = WaitForEvent(environment)
         event_get = wait_for_event(environment)
         print_event(event_get)
         time.sleep(0.2)
         if event_get == EVENT_NO_TYPE:
             lg.warning("No event ?!")
         elif event_get == EVENT_TYPE_TAKE_PICTURE:
-            take_a_picture(environment)
+            take_pictures(environment)
         elif event_get == EVENT_TYPE_SHOW_LAST_PICTURE:
             show_last_picture(environment)
         elif event_get == EVENT_TYPE_BROWSE_PICTURES:
@@ -642,7 +547,7 @@ def my_main(main_args):
     pygame.init()  # Initialise pygame
     environment = init_environment()
     setup_pygame(environment)
-    InitFolder(environment)
+    init_folders(environment)
     setup_rpi_gpio(environment)
     setup_rpi_camera(environment)
     main_thread = LaunchThread(main_pygame, environment)
