@@ -44,6 +44,7 @@ import PIL.Image
 #import cups
 import RPi.GPIO as GPIO
 
+from shutil import copyfile
 from pygame.locals import *
 from time import sleep
 from PIL import Image, ImageDraw
@@ -73,6 +74,8 @@ imagecounter = 0
 def init_environment():
     """Function that initialize environment"""
     environment = {}
+    environment["start_picture_filename"] = '/tmp/start_camera.jpg'
+    environment["original_start_picture_filename"] = 'images/start_camera.jpg'
     environment["output_photos_folder"] = "output_photos"
     environment["output_montages_photos_folder"] = "output_photos/montages"
     environment["tmp_photo_print_path"] = "/tmp/tempprint.png"
@@ -102,10 +105,16 @@ def init_environment():
     environment["camera_parameters"]["video_stabilization"] = True
     environment["camera_pointer"] = None
 
+    #Now computed depending on montage_rebord
     environment["picture_for_pasting_width"] = 550
     environment["picture_for_pasting_height"] = 360
 
     environment["montage_rebord"] = 30
+
+    environment["last_picture_pos_start_in_start_screen"] = (1410, 526)
+    environment["last_picture_pos_end_in_start_screen"] = (1808, 770)
+    environment["picture_for_pasting_width_start_screen"] = 0
+    environment["picture_for_pasting_height_start_screen"] = 0
 
     return environment
 
@@ -130,6 +139,13 @@ def compute_picture_size_and_position(environment):
     lg.info("picture_for_pasting_pos1:"+str(environment["picture_for_pasting_pos1"]))
     lg.info("picture_for_pasting_pos2:"+str(environment["picture_for_pasting_pos2"]))
     lg.info("picture_for_pasting_pos3:"+str(environment["picture_for_pasting_pos3"]))
+
+    environment["picture_for_pasting_width_start_screen"] = environment["last_picture_pos_end_in_start_screen"][0] - environment["last_picture_pos_start_in_start_screen"][0]
+    environment["picture_for_pasting_height_start_screen"] = environment["last_picture_pos_end_in_start_screen"][1] - environment["last_picture_pos_start_in_start_screen"][1]
+    lg.info("picture_for_pasting_width_start_screen:"+str(environment["picture_for_pasting_width_start_screen"]))
+    lg.info("picture_for_pasting_height_start_screen:"+str(environment["picture_for_pasting_height_start_screen"]))
+
+
 
 def setup_pygame(environment):
     """ Setup pygame environment """
@@ -492,6 +508,17 @@ def creation_montage(environment, filename1, filename2, filename3):
     background_image.save(montage_filename)
     return montage_filename
 
+def creation_montage_start_screen(environment, last_picture_filename):
+    """Creation du montage photo d'image de depart"""
+    if last_picture_filename:
+        background_image = PIL.Image.open(environment["original_start_picture_filename"])
+        image1 = PIL.Image.open(last_picture_filename).resize((environment["picture_for_pasting_width_start_screen"], environment["picture_for_pasting_height_start_screen"]))
+        background_image.paste(image1, environment["last_picture_pos_start_in_start_screen"])
+        background_image.save(environment["start_picture_filename"])
+        return True
+    copyfile(environment["original_start_picture_filename"], environment["start_picture_filename"])
+    return False
+
 def take_pictures(environment):
     """Function that handle the scenario take a picture"""
     lg.info("SCENARIO : Take pictures")
@@ -513,6 +540,8 @@ def take_pictures(environment):
     lg.info("printing_asked:"+str(printing_asked))
     if printing_asked:
         print_picture(environment, environment["last_taken_picture_path"])
+
+    creation_montage_start_screen(environment, environment["last_taken_picture_path"])
 
 def show_last_picture(environment):
     """Function that handle the scenario take a picture"""
@@ -537,9 +566,9 @@ def browse_pictures(environment):
     lg.info("SCENARIO : Browse pictures")
 
 def main_pygame(environment):
-
+    creation_montage_start_screen(environment, environment["last_taken_picture_path"])
     while True:
-        show_image(environment, 'images/start_camera.jpg')
+        show_image(environment, environment["start_picture_filename"])
         event_get = wait_for_event(environment)
         print_event(event_get)
         time.sleep(0.2)
