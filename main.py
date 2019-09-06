@@ -429,7 +429,7 @@ def wait_for_event(environment, during_seconds):
                 elif event.key == pygame.K_DOWN:
                     return EVENT_TYPE_TAKE_PICTURE
         if not bool(loop) :
-            loop += 1
+            loop -= 1
         time.sleep(0.1)
     return EVENT_NO_TYPE
 
