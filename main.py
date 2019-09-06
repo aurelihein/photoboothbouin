@@ -88,6 +88,7 @@ def init_environment():
     environment["output_montages_photos_folder"] = "output_photos/montages"
     environment["tmp_photo_print_path"] = "/tmp/tempprint.png"
     environment["template_path"] = "images/template.png"
+    environment["shoot_sound"] = "sounds/double_shoots.wav"
     environment["last_taken_picture_path"] = None
     result = subprocess.check_output("ls -lat "+str(environment["output_montages_photos_folder"])+" | head -2 | tail -1 | awk '{print $9}'", shell=True)
     if result:
@@ -606,7 +607,13 @@ def browse_pictures(environment):
         if event_get == EVENT_TYPE_TAKE_PICTURE or event_get == EVENT_TYPE_RESTART or event_get == EVENT_TYPE_STOP:
             return
 
+def play_a_sound(filepath):
+    """play a sound file"""
+    os.system("aplay "+str(filepath)+" &")
+
 def main_pygame(environment):
+    """pygame main function"""
+    play_a_sound(environment["shoot_sound"])
     creation_montage_start_screen(environment, environment["last_taken_picture_path"])
     while True:
         show_image(environment, environment["start_picture_filename"])
