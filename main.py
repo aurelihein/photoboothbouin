@@ -60,19 +60,6 @@ SECONDS_TO_WAIT_TO_SHOW_PICTURE_READY_TO_PRINT = 5
 SECONDS_TO_WAIT_TO_SHOW_PICTURE_AFTER_A_SHOOT = 2
 SECONDS_TO_WAIT_IN_BROWSING_MODE = 5
 
-environment = {}
-
-# initialise global variables
-the_number = ""  # the_number is the number display
-the_message = ""  # the_message is a fullscreen the_message
-background_color = ""
-count_down_photo = ""
-CountPhotoOnCart = ""
-Smallthe_message = ""  # Smallthe_message is a lower banner the_message
-TotalImageCount = 0  # Counter for Display and to monitor paper usage
-PhotosPerCart = 30  # Selphy takes 16 sheets per tray
-imagecounter = 0
-
 def get_all_montages(environment):
     """Get all montages files"""
     #return subprocess.check_output("ls -lat "+str(environment["output_montages_photos_folder"])+" | grep -v d | awk '{print $9}'", shell=True)
@@ -93,6 +80,7 @@ def init_environment():
     environment["start_sound"] = "sounds/polaroid.wav"
     environment["shoot_sound"] = "sounds/double_shoots.wav"
     environment["buzz_sound"] = "sounds/buzz.wav"
+    environment["page_flip_sound"] = "sounds/page_flip.wav"
     environment["last_taken_picture_path"] = None
     result = subprocess.check_output("ls -lat "+str(environment["output_montages_photos_folder"])+" | head -2 | tail -1 | awk '{print $9}'", shell=True)
     if result:
@@ -554,8 +542,10 @@ def browse_pictures(environment):
         #print_event(event_get)
         if event_get == EVENT_TYPE_BROWSE_PICTURES:
             pointer -= 1
+            play_a_sound(environment["page_flip_sound"])
         elif event_get == EVENT_TYPE_SHOW_LAST_PICTURE:
             pointer += 1
+            play_a_sound(environment["page_flip_sound"])
         if event_get == EVENT_TYPE_TAKE_PICTURE or event_get == EVENT_TYPE_RESTART or event_get == EVENT_TYPE_STOP:
             return
 
@@ -631,14 +621,14 @@ def parse_arguments():
     )
 
     parser.add_argument(
-        '-m', '--the_message',
-        help="the_message to print",
+        '-m', '--message',
+        help="Message to print",
         type=str,
         default="hello world"
     )
     parser.add_argument(
         '-c', '--count',
-        help="number of time to print the the_message, default:1",
+        help="number of time to print the Message, default:1",
         type=int,
         default=1
     )
@@ -671,8 +661,8 @@ if __name__ == '__main__':
     try:
         # instruction qui risque de lever une erreur
         ARGUMENTS = parse_arguments()
-        #THE_DEBUG_FORMAT = '%(relativeCreated)6d %(threadName)s %(the_message)s'
-        THE_DEBUG_FORMAT = '%(asctime)s:%(levelname)s-%(the_message)s'
+        #THE_DEBUG_FORMAT = '%(relativeCreated)6d %(threadName)s %(message)s'
+        THE_DEBUG_FORMAT = '%(asctime)s:%(levelname)s-%(message)s'
         THE_DEBUG_FILENAME = ARGUMENTS.log
         THE_DEBUG_LEVEL = lg.INFO
         if ARGUMENTS.verbose:
