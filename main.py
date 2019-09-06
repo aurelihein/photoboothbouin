@@ -148,16 +148,16 @@ def compute_picture_size_and_position(environment):
     delta_x = environment["montage_rebord"]
     environment["picture_for_pasting_pos3"] = (delta_x, delta_y)
 
-    lg.info("picture_for_pasting_width:"+str(environment["picture_for_pasting_width"]))
-    lg.info("picture_for_pasting_height:"+str(environment["picture_for_pasting_height"]))
-    lg.info("picture_for_pasting_pos1:"+str(environment["picture_for_pasting_pos1"]))
-    lg.info("picture_for_pasting_pos2:"+str(environment["picture_for_pasting_pos2"]))
-    lg.info("picture_for_pasting_pos3:"+str(environment["picture_for_pasting_pos3"]))
-
     environment["picture_for_pasting_width_start_screen"] = environment["last_picture_pos_end_in_start_screen"][0] - environment["last_picture_pos_start_in_start_screen"][0]
     environment["picture_for_pasting_height_start_screen"] = environment["last_picture_pos_end_in_start_screen"][1] - environment["last_picture_pos_start_in_start_screen"][1]
-    lg.info("picture_for_pasting_width_start_screen:"+str(environment["picture_for_pasting_width_start_screen"]))
-    lg.info("picture_for_pasting_height_start_screen:"+str(environment["picture_for_pasting_height_start_screen"]))
+    if False :
+        lg.info("picture_for_pasting_width:"+str(environment["picture_for_pasting_width"]))
+        lg.info("picture_for_pasting_height:"+str(environment["picture_for_pasting_height"]))
+        lg.info("picture_for_pasting_pos1:"+str(environment["picture_for_pasting_pos1"]))
+        lg.info("picture_for_pasting_pos2:"+str(environment["picture_for_pasting_pos2"]))
+        lg.info("picture_for_pasting_pos3:"+str(environment["picture_for_pasting_pos3"]))
+        lg.info("picture_for_pasting_width_start_screen:"+str(environment["picture_for_pasting_width_start_screen"]))
+        lg.info("picture_for_pasting_height_start_screen:"+str(environment["picture_for_pasting_height_start_screen"]))
 
 
 
@@ -573,7 +573,6 @@ def take_pictures(environment):
     show_image(environment, environment["last_taken_picture_path"])
     time.sleep(SECONDS_TO_WAIT_TO_SHOW_PICTURE_READY_TO_PRINT)
     printing_asked = wait_for_allow_printing_event(environment, 5)
-    lg.info("printing_asked:"+str(printing_asked))
     if printing_asked:
         print_picture(environment, environment["last_taken_picture_path"])
 
@@ -586,7 +585,6 @@ def show_last_picture(environment):
         show_image(environment, environment["last_taken_picture_path"])
         time.sleep(SECONDS_TO_WAIT_TO_SHOW_PICTURE_READY_TO_PRINT)
         printing_asked = wait_for_allow_printing_event(environment, 5)
-        lg.info("printing_asked:"+str(printing_asked))
         if printing_asked:
             print_picture(environment, environment["last_taken_picture_path"])
     else:
@@ -611,7 +609,7 @@ def browse_pictures(environment):
     delta_y = environment["browsing_down_up_bar"]
 
     while event_get != EVENT_NO_TYPE:
-        lg.info("pointer:"+str(pointer))
+        #lg.info("pointer:"+str(pointer))
         if pointer < 0:
             pointer = 0
         if pointer >= len(all_montages_filename):
@@ -619,7 +617,7 @@ def browse_pictures(environment):
         #show_image(environment, all_montages_filename[pointer])
         show_image_with_size_and_pos(environment, all_montages_filename[pointer], width, height, delta_x, delta_y)
         event_get = wait_for_event(environment, SECONDS_TO_WAIT_IN_BROWSING_MODE)
-        print_event(event_get)
+        #print_event(event_get)
         if event_get == EVENT_TYPE_BROWSE_PICTURES:
             pointer -= 1
         elif event_get == EVENT_TYPE_SHOW_LAST_PICTURE:
@@ -639,7 +637,7 @@ def main_pygame(environment):
     while True:
         show_image(environment, environment["start_picture_filename"])
         event_get = wait_for_event(environment, 0)
-        print_event(event_get)
+        #print_event(event_get)
         time.sleep(0.2)
         if event_get == EVENT_NO_TYPE:
             lg.warning("No event ?!")
