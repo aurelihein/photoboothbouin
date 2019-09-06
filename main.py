@@ -402,6 +402,7 @@ def wait_for_event(environment, during_seconds):
     if not during_seconds :
         loop = True
     else:
+        lg.debug("Will wait in event for "+str(during_seconds)+" sec")
         loop = int(during_seconds)*10
     while loop:
         if not GPIO.input(environment["bp_to_launch_browse_pictures"]):
@@ -428,7 +429,7 @@ def wait_for_event(environment, during_seconds):
                     return EVENT_TYPE_STOP
                 elif event.key == pygame.K_DOWN:
                     return EVENT_TYPE_TAKE_PICTURE
-        if not bool(loop) :
+        if not isinstance(loop, bool) :
             loop -= 1
         time.sleep(0.1)
     return EVENT_NO_TYPE
