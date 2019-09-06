@@ -598,8 +598,8 @@ def browse_pictures(environment):
     """Function that handle the scenario take a picture"""
     lg.info("SCENARIO : Browse pictures")
     all_montages_filename = get_all_montages(environment)
-    lg.info("all_montages_filename:"+str(all_montages_filename))
-    lg.info("len(all_montages_filename):"+str(len(all_montages_filename)))
+    #lg.info("all_montages_filename:"+str(all_montages_filename))
+    #lg.info("len(all_montages_filename):"+str(len(all_montages_filename)))
     pointer = len(all_montages_filename) - 1
     event_get = EVENT_TYPE_BROWSE_PICTURES
 
