@@ -30,7 +30,7 @@ Program that display something
 
 VERSION = "1.0.0"
 
-ENABLE_PRINTING = False
+ENABLE_PRINTING = True
 
 import argparse
 import logging as lg
@@ -42,7 +42,7 @@ import os
 import glob
 import subprocess
 import PIL.Image
-#import cups
+import cups
 import RPi.GPIO as GPIO
 
 from shutil import copyfile
@@ -82,6 +82,15 @@ def init_environment():
     environment["buzz_sound"] = "sounds/buzz.wav"
     environment["page_flip_sound"] = "sounds/page_flip.wav"
     environment["page_flip_sound_back"] = "sounds/page_flip_back.wav"
+
+    environment["printer_selected"] = "hp_locale"
+    environment["printer_options"] = {'media':'A6','print-quality':'3'}
+    environment["printer_tmp_filepath"] = "/tmp/to_be_printed.png"
+    #-o print-quality=3
+    #-o print-quality=4
+    #-o print-quality=5
+    #Specifies the output quality - draft (3), normal (4), or best (5).
+
     environment["last_taken_picture_path"] = None
 
     #GPIO to use for the BP browse pictures
@@ -118,7 +127,7 @@ def init_environment():
 
     result = get_all_montages(environment)
     if result:
-        environment["last_taken_picture_path"] = result[0]
+        environment["last_taken_picture_path"] = result[-1]
     return environment
 
 def compute_picture_size_and_position(environment):
@@ -386,14 +395,19 @@ def print_picture(environment, filepath):
     if ENABLE_PRINTING:
         if os.path.isfile(filepath):
             # Open a connection to cups
-            #TODO : cups
             conn = cups.Connection()
             # get a list of printers
             printers = conn.getPrinters()
             # select printer 0
-            printer_name = printers.keys()[0]
-            update_display(environment, "", "Impression en cours...", "", "", False)
-            time.sleep(1)
+            printer_name = environment["printer_selected"]
+            my_printer = printers.get(environment["printer_selected"], None)
+            if my_printer is None :
+                lg.critical("The printer "+str(printer_name)+" does not exists in list:"+str(printers.keys()))
+                update_display(environment, "", "!! Impression impossible !!", "", "", False)
+                time.sleep(1)
+                update_display(environment, "", "Nous vous enverrons vos photos...", "", "", False)
+                time.sleep(1)
+            cups.setUser('pi')
             # print the buffer file
             printqueuelength = len(conn.getJobs())
             if printqueuelength > 1:
@@ -406,8 +420,10 @@ def print_picture(environment, filepath):
                 update_display(environment, "", "Nous vous enverrons vos photos...", "", "", False)
                 time.sleep(1)
             else:
-                conn.printFile(printer_name, filepath, "PhotoBooth", {})
-                time.sleep(40)
+                update_display(environment, "", "Impression en cours...", "", "", False)
+                tmp_filepath = creation_montage_to_print_A_format(environment, filepath, environment["printer_tmp_filepath"])
+                conn.printFile(printer_name, tmp_filepath, "PhotoBoothBouin", environment["printer_options"])
+                time.sleep(20)
     else:
         play_a_sound(environment["buzz_sound"])
         update_display(environment, "", "!! Impression desactivee !!", "", "", False)
@@ -479,6 +495,16 @@ def creation_montage_start_screen(environment, last_picture_filename):
         return True
     copyfile(environment["original_start_picture_filename"], environment["start_picture_filename"])
     return False
+
+def creation_montage_to_print_A_format(environment, filepath, tmp_filepath):
+    """Creation du montage photo d'image de depart"""
+    if filepath:
+        background_image = PIL.Image.new("RGB", (1920,1358), color = 'white')
+        image1 = PIL.Image.open(filepath)
+        background_image.paste(image1, (0, 139))
+        background_image.save(tmp_filepath)
+        return tmp_filepath
+    return None
 
 def take_pictures(environment):
     """Function that handle the scenario take a picture"""
