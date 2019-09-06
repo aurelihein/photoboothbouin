@@ -58,6 +58,8 @@ EVENT_TYPE_RESTART = 4
 EVENT_TYPE_STOP = 5
 
 SECONDS_TO_WAIT_TO_SHOW_PICTURE_READY_TO_PRINT = 5
+SECONDS_TO_WAIT_TO_SHOW_PICTURE_AFTER_A_SHOOT = 2
+SECONDS_TO_WAIT_IN_BROWSING_MODE = 5
 
 environment = {}
 
@@ -84,6 +86,7 @@ def init_environment():
     environment = {}
     environment["start_picture_filename"] = '/tmp/start_camera.jpg'
     environment["original_start_picture_filename"] = 'images/start_camera.jpg'
+    environment["background_browse_filename"] = 'images/browse_background.jpg'
     environment["output_photos_folder"] = "output_photos/singles_photos"
     environment["output_montages_photos_folder"] = "output_photos/montages"
     environment["tmp_photo_print_path"] = "/tmp/tempprint.png"
@@ -120,6 +123,7 @@ def init_environment():
     environment["picture_for_pasting_height"] = 360
 
     environment["montage_rebord"] = 30
+    environment["browsing_down_up_bar"] = 50
 
     environment["last_picture_pos_start_in_start_screen"] = (1410, 526)
     environment["last_picture_pos_end_in_start_screen"] = (1808, 770)
@@ -350,15 +354,24 @@ def ShowPicture(environment, file, delay):
     ImageShowed = True
     time.sleep(delay)
 
+def show_image_with_size_and_pos(environment, image_path, width, height, pos_x, pos_y):
+    """Display an image on full screen"""
+    img = pygame.image.load(image_path) # load the image
+    img = pygame.transform.scale(img, (width, height))
+    img = img.convert()
+    #set_dimensions(environment, width, height) # set pixel dimensions based on image
+    environment["screen_pointer"].blit(img, (pos_x, pos_y))
+    pygame.display.flip()
+
 def show_image(environment, image_path):
     """Display an image on full screen"""
     environment["screen_pointer"].fill(pygame.Color("white")) # clear the screen
     img = pygame.image.load(image_path) # load the image
     img = img.convert()
     set_dimensions(environment, img.get_width(), img.get_height()) # set pixel dimensions based on image
-    x = (environment["screen_w"] / 2) - (img.get_width() / 2)
-    y = (environment["screen_h"] / 2) - (img.get_height() / 2)
-    environment["screen_pointer"].blit(img, (x, y))
+    delta_x = (environment["screen_w"] / 2) - (img.get_width() / 2)
+    delta_y = (environment["screen_h"] / 2) - (img.get_height() / 2)
+    environment["screen_pointer"].blit(img, (delta_x, delta_y))
     pygame.display.flip()
 
 def print_event(value):
@@ -502,7 +515,8 @@ def take_a_picture(environment, part):
     play_a_sound(environment["shoot_sound"])
     environment["camera_pointer"].capture(filename, 'jpeg', use_video_port=True)
     environment["camera_pointer"].stop_preview()
-    ShowPicture(environment, filename, 2)
+    show_image(environment, filename)
+    time.sleep(SECONDS_TO_WAIT_TO_SHOW_PICTURE_AFTER_A_SHOOT)
     return filename
 
 def creation_montage(environment, filename1, filename2, filename3):
@@ -569,13 +583,8 @@ def show_last_picture(environment):
     """Function that handle the scenario take a picture"""
     lg.info("SCENARIO : Show last picture")
     if environment["last_taken_picture_path"]:
-        if False:
-            ShowPicture(environment, environment["last_taken_picture_path"], SECONDS_TO_WAIT_TO_SHOW_PICTURE_READY_TO_PRINT)
-        else:
-            show_image(environment, environment["last_taken_picture_path"])
-            time.sleep(SECONDS_TO_WAIT_TO_SHOW_PICTURE_READY_TO_PRINT)
-
-        #ShowPicture(environment, environment["last_taken_picture_path"], 1)
+        show_image(environment, environment["last_taken_picture_path"])
+        time.sleep(SECONDS_TO_WAIT_TO_SHOW_PICTURE_READY_TO_PRINT)
         printing_asked = wait_for_allow_printing_event(environment, 5)
         lg.info("printing_asked:"+str(printing_asked))
         if printing_asked:
@@ -583,7 +592,7 @@ def show_last_picture(environment):
     else:
         lg.warning("No picture taken yet=>Take one !")
 
-SECONDS_TO_WAIT_IN_BROWSING_MODE = 5
+#environment["browsing_down_bar"]
 
 def browse_pictures(environment):
     """Function that handle the scenario take a picture"""
@@ -593,13 +602,22 @@ def browse_pictures(environment):
     lg.info("len(all_montages_filename):"+str(len(all_montages_filename)))
     pointer = len(all_montages_filename) - 1
     event_get = EVENT_TYPE_BROWSE_PICTURES
+
+
+    show_image(environment, environment["background_browse_filename"])
+    width = 1600
+    height = 900
+    delta_x = (environment["screen_w"] / 2) - (width / 2)
+    delta_y = environment["browsing_down_up_bar"]
+
     while event_get != EVENT_NO_TYPE:
         lg.info("pointer:"+str(pointer))
         if pointer < 0:
             pointer = 0
         if pointer >= len(all_montages_filename):
             pointer = len(all_montages_filename)-1
-        show_image(environment, all_montages_filename[pointer])
+        #show_image(environment, all_montages_filename[pointer])
+        show_image_with_size_and_pos(environment, all_montages_filename[pointer], width, height, delta_x, delta_y)
         event_get = wait_for_event(environment, SECONDS_TO_WAIT_IN_BROWSING_MODE)
         print_event(event_get)
         if event_get == EVENT_TYPE_BROWSE_PICTURES:
@@ -617,6 +635,7 @@ def main_pygame(environment):
     """pygame main function"""
     play_a_sound(environment["start_sound"])
     creation_montage_start_screen(environment, environment["last_taken_picture_path"])
+
     while True:
         show_image(environment, environment["start_picture_filename"])
         event_get = wait_for_event(environment, 0)
