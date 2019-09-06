@@ -81,6 +81,7 @@ def init_environment():
     environment["shoot_sound"] = "sounds/double_shoots.wav"
     environment["buzz_sound"] = "sounds/buzz.wav"
     environment["page_flip_sound"] = "sounds/page_flip.wav"
+    environment["page_flip_sound_back"] = "sounds/page_flip_back.wav"
     environment["last_taken_picture_path"] = None
     result = subprocess.check_output("ls -lat "+str(environment["output_montages_photos_folder"])+" | head -2 | tail -1 | awk '{print $9}'", shell=True)
     if result:
@@ -542,7 +543,7 @@ def browse_pictures(environment):
         #print_event(event_get)
         if event_get == EVENT_TYPE_BROWSE_PICTURES:
             pointer -= 1
-            play_a_sound(environment["page_flip_sound"])
+            play_a_sound(environment["page_flip_sound_back"])
         elif event_get == EVENT_TYPE_SHOW_LAST_PICTURE:
             pointer += 1
             play_a_sound(environment["page_flip_sound"])
