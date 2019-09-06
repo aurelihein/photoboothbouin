@@ -47,7 +47,6 @@ import RPi.GPIO as GPIO
 
 from shutil import copyfile
 from pygame.locals import *
-from time import sleep
 from PIL import Image, ImageDraw
 
 EVENT_NO_TYPE = 0
@@ -64,12 +63,12 @@ SECONDS_TO_WAIT_IN_BROWSING_MODE = 5
 environment = {}
 
 # initialise global variables
-Numeral = ""  # Numeral is the number display
-Message = ""  # Message is a fullscreen message
-BackgroundColor = ""
-CountDownPhoto = ""
+the_number = ""  # the_number is the number display
+the_message = ""  # the_message is a fullscreen the_message
+background_color = ""
+count_down_photo = ""
 CountPhotoOnCart = ""
-SmallMessage = ""  # SmallMessage is a lower banner message
+Smallthe_message = ""  # Smallthe_message is a lower banner the_message
 TotalImageCount = 0  # Counter for Display and to monitor paper usage
 PhotosPerCart = 30  # Selphy takes 16 sheets per tray
 imagecounter = 0
@@ -93,10 +92,11 @@ def init_environment():
     environment["template_path"] = "images/template.png"
     environment["start_sound"] = "sounds/polaroid.wav"
     environment["shoot_sound"] = "sounds/double_shoots.wav"
+    environment["buzz_sound"] = "sounds/buzz.wav"
     environment["last_taken_picture_path"] = None
     result = subprocess.check_output("ls -lat "+str(environment["output_montages_photos_folder"])+" | head -2 | tail -1 | awk '{print $9}'", shell=True)
     if result:
-        environment["last_taken_picture_path"]=environment["output_montages_photos_folder"]+"/"+result.rstrip()
+        environment["last_taken_picture_path"] = environment["output_montages_photos_folder"]+"/"+result.rstrip()
 
     #GPIO to use for the BP browse pictures
     environment["bp_to_launch_browse_pictures"] = 23
@@ -132,13 +132,10 @@ def init_environment():
 
     return environment
 
-ImageShowed = False
-Printing = False
-
 def compute_picture_size_and_position(environment):
     """ Compute picture size and position to fit the screen """
-    environment["picture_for_pasting_width"] = (environment["screen_w"] - (3 * environment["montage_rebord"]) ) /2
-    environment["picture_for_pasting_height"] = (environment["screen_h"] - (3 * environment["montage_rebord"]) ) /2
+    environment["picture_for_pasting_width"] = (environment["screen_w"] - (3 * environment["montage_rebord"])) /2
+    environment["picture_for_pasting_height"] = (environment["screen_h"] - (3 * environment["montage_rebord"])) /2
 
     delta_x = environment["picture_for_pasting_width"] + (2 * environment["montage_rebord"])
     delta_y = environment["montage_rebord"]
@@ -150,7 +147,7 @@ def compute_picture_size_and_position(environment):
 
     environment["picture_for_pasting_width_start_screen"] = environment["last_picture_pos_end_in_start_screen"][0] - environment["last_picture_pos_start_in_start_screen"][0]
     environment["picture_for_pasting_height_start_screen"] = environment["last_picture_pos_end_in_start_screen"][1] - environment["last_picture_pos_start_in_start_screen"][1]
-    if False :
+    if False:
         lg.info("picture_for_pasting_width:"+str(environment["picture_for_pasting_width"]))
         lg.info("picture_for_pasting_height:"+str(environment["picture_for_pasting_height"]))
         lg.info("picture_for_pasting_pos1:"+str(environment["picture_for_pasting_pos1"]))
@@ -226,39 +223,8 @@ def setup_rpi_gpio(environment):
     GPIO.setup(environment["bp_to_launch_show_last_picture"], GPIO.IN, pull_up_down=GPIO.PUD_UP)
     GPIO.setup(environment["bp_to_restart"], GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
-# set variables to properly display the image on screen at right ratio
-def set_dimensions(environment, img_w, img_h):
-    # Note this only works when in booting in desktop mode.
-    # When running in terminal, the size is not correct (it displays small). Why?
-
-    # connect to global vars
-    global offset_y, offset_x
-
-    # based on output screen resolution, calculate how to display
-    ratio_h = (environment["screen_w"] * img_h) / img_w
-
-    if (ratio_h < environment["screen_h"]):
-        #Use horizontal black bars
-        #print "horizontal black bars"
-        environment["replay_picture_scale_h"] = ratio_h
-        environment["replay_picture_scale_w"] = environment["screen_w"]
-        offset_y = (environment["screen_h"] - ratio_h) / 2
-        offset_x = 0
-    elif (ratio_h > environment["screen_h"]):
-        #Use vertical black bars
-        #print "vertical black bars"
-        environment["replay_picture_scale_w"] = (environment["screen_h"] * img_w) / img_h
-        environment["replay_picture_scale_h"] = environment["screen_h"]
-        offset_x = (environment["screen_w"] - environment["replay_picture_scale_w"]) / 2
-        offset_y = 0
-    else:
-        #No need for black bars as photo ratio equals screen ratio
-        #print "no black bars"
-        environment["replay_picture_scale_w"] = environment["screen_w"]
-        environment["replay_picture_scale_h"] = environment["screen_h"]
-        offset_y = offset_x = 0
-
 def init_folders(environment):
+    """init folders"""
 
     update_display(environment, "", "Verification des dossiers", "", "", False)
 
@@ -269,69 +235,56 @@ def init_folders(environment):
     if not os.path.isdir(environment["output_montages_photos_folder"]):
         os.makedirs(environment["output_montages_photos_folder"])
 
-def UpdateDisplay(environment):
-    global BackgroundColor
-    global Numeral
-    global Message
-    global CountDownPhoto
-    global ImageShowed
 
-    display_config = {}
-    display_config["background_color"] = BackgroundColor
-    display_config["message"] = Message
-    display_config["numeral"] = Numeral
-    display_config["count_down_photo"] = CountDownPhoto
-    display_config["image_showed"] = ImageShowed
-    update_display(environment, BackgroundColor, Message, Numeral, CountDownPhoto, ImageShowed)
-
-def update_display(environment, BackgroundColor, Message, Numeral, CountDownPhoto, ImageShowed):
+def update_display(environment, background_color, the_message, the_number, count_down_photo, is_the_image_show):
+    """Update display with text"""
 
     environment["background_screen_pointer"].fill(pygame.Color("white"))  # White background
 
-    if BackgroundColor != "":
-        #print(BackgroundColor)
+    if background_color != "":
+        #print(background_color)
         environment["background_screen_pointer"].fill(pygame.Color("black"))
-    if Message != "":
+    if the_message != "":
         #print(displaytext)
         font = pygame.font.Font(None, 100)
-        text = font.render(Message, 1, (227, 157, 200))
+        text = font.render(the_message, 1, (227, 157, 200))
         textpos = text.get_rect()
         textpos.centerx = environment["background_screen_pointer"].get_rect().centerx
         textpos.centery = environment["background_screen_pointer"].get_rect().centery
-        if Numeral != "":
+        if the_number != "":
             textpos.centery -= 300
-        elif CountDownPhoto != "":
+        elif count_down_photo != "":
             textpos.centery -= 200
-        if(ImageShowed):
+        if is_the_image_show:
             environment["background_screen_picture_pointer"].blit(text, textpos)
         else:
             environment["background_screen_pointer"].blit(text, textpos)
 
-    if Numeral != "":
+    if the_number != "":
         #print(displaytext)
         font = pygame.font.Font(None, 800)
-        text = font.render(Numeral, 1, (227, 157, 200))
+        text = font.render(the_number, 1, (227, 157, 200))
         textpos = text.get_rect()
         textpos.centerx = environment["background_screen_pointer"].get_rect().centerx
         textpos.centery = environment["background_screen_pointer"].get_rect().centery
-        if(ImageShowed):
+        if is_the_image_show:
             environment["background_screen_picture_pointer"].blit(text, textpos)
         else:
             environment["background_screen_pointer"].blit(text, textpos)
 
-    if CountDownPhoto != "":
+    if count_down_photo != "":
         #print(displaytext)
         font = pygame.font.Font(None, 500)
-        text = font.render(CountDownPhoto, 1, (227, 157, 200))
+        text = font.render(count_down_photo, 1, (227, 157, 200))
         textpos = text.get_rect()
         textpos.centerx = environment["background_screen_pointer"].get_rect().centerx
         textpos.centery = environment["background_screen_pointer"].get_rect().centery
-        if(ImageShowed):
+        if is_the_image_show:
             environment["background_screen_picture_pointer"].blit(text, textpos)
         else:
             environment["background_screen_pointer"].blit(text, textpos)
 
-    if ImageShowed == True:
+    if is_the_image_show:
         environment["screen_picture_pointer"].blit(environment["background_screen_picture_pointer"], (0, 0))
     else:
         environment["screen_pointer"].blit(environment["background_screen_pointer"], (0, 0))
@@ -339,27 +292,11 @@ def update_display(environment, BackgroundColor, Message, Numeral, CountDownPhot
     pygame.display.flip()
     return
 
-def ShowPicture(environment, file, delay):
-    global pygame
-    global screenPicture
-    global ImageShowed
-    environment["background_screen_picture_pointer"].fill((0, 0, 0))
-    img = pygame.image.load(file)
-    # Make the image full screen
-    img = pygame.transform.scale(img, environment["screen_picture_pointer"].get_size())
-    #environment["background_screen_picture_pointer"].set_alpha(200)
-    environment["background_screen_picture_pointer"].blit(img, (0, 0))
-    environment["screen_pointer"].blit(environment["background_screen_picture_pointer"], (0, 0))
-    pygame.display.flip()  # update the display
-    ImageShowed = True
-    time.sleep(delay)
-
 def show_image_with_size_and_pos(environment, image_path, width, height, pos_x, pos_y):
     """Display an image on full screen"""
     img = pygame.image.load(image_path) # load the image
     img = pygame.transform.scale(img, (width, height))
     img = img.convert()
-    #set_dimensions(environment, width, height) # set pixel dimensions based on image
     environment["screen_pointer"].blit(img, (pos_x, pos_y))
     pygame.display.flip()
 
@@ -368,7 +305,6 @@ def show_image(environment, image_path):
     environment["screen_pointer"].fill(pygame.Color("white")) # clear the screen
     img = pygame.image.load(image_path) # load the image
     img = img.convert()
-    set_dimensions(environment, img.get_width(), img.get_height()) # set pixel dimensions based on image
     delta_x = (environment["screen_w"] / 2) - (img.get_width() / 2)
     delta_y = (environment["screen_h"] / 2) - (img.get_height() / 2)
     environment["screen_pointer"].blit(img, (delta_x, delta_y))
@@ -399,7 +335,7 @@ def print_event(value):
 def wait_for_event(environment, during_seconds):
     """Wait for BP events"""
 
-    if not during_seconds :
+    if not during_seconds:
         loop = True
     else:
         lg.debug("Will wait in event for "+str(during_seconds)+" sec")
@@ -429,7 +365,7 @@ def wait_for_event(environment, during_seconds):
                     return EVENT_TYPE_STOP
                 elif event.key == pygame.K_DOWN:
                     return EVENT_TYPE_TAKE_PICTURE
-        if not isinstance(loop, bool) :
+        if not isinstance(loop, bool):
             loop -= 1
         time.sleep(0.1)
     return EVENT_NO_TYPE
@@ -463,6 +399,7 @@ def print_picture(environment, filepath):
     if ENABLE_PRINTING:
         if os.path.isfile(filepath):
             # Open a connection to cups
+            #TODO : cups
             conn = cups.Connection()
             # get a list of printers
             printers = conn.getPrinters()
@@ -473,7 +410,9 @@ def print_picture(environment, filepath):
             # print the buffer file
             printqueuelength = len(conn.getJobs())
             if printqueuelength > 1:
-                ShowPicture(environment, filepath, 3)
+                play_a_sound(environment["buzz_sound"])
+                #show_image(environment, filepath)
+                #time.sleep(3)
                 conn.enablePrinter(printer_name)
                 update_display(environment, "", "!! Impression impossible !!", "", "", False)
                 time.sleep(1)
@@ -483,18 +422,18 @@ def print_picture(environment, filepath):
                 conn.printFile(printer_name, filepath, "PhotoBooth", {})
                 time.sleep(40)
     else:
+        play_a_sound(environment["buzz_sound"])
         update_display(environment, "", "!! Impression desactivee !!", "", "", False)
         time.sleep(1)
         update_display(environment, "", "Nous vous enverrons vos photos...", "", "", False)
         time.sleep(1)
 
 def take_a_picture(environment, part):
+    """Take a picture"""
 
     update_display(environment, "", "", "", str(part), False)
     time.sleep(1)
-
     update_display(environment, "", "", "", "", False)
-
     environment["background_screen_pointer"].fill(pygame.Color("black"))
     environment["screen_pointer"].blit(environment["background_screen_pointer"], (0, 0))
     #To see you correctly ??
@@ -510,9 +449,7 @@ def take_a_picture(environment, part):
 
     update_display(environment, "", "", "", "", False)
     ts = time.strftime('%Y%m%d_%H%M%S', time.localtime())
-    filename_without_extension = os.path.join(environment["output_photos_folder"],str(ts)+'-photo')
-    filename = filename_without_extension+".jpg"
-    #filename = filename_without_extension+".png"
+    filename = os.path.join(environment["output_photos_folder"], str(ts)+'-photo.jpg')
     play_a_sound(environment["shoot_sound"])
     environment["camera_pointer"].capture(filename, 'jpeg', use_video_port=True)
     environment["camera_pointer"].stop_preview()
@@ -591,8 +528,6 @@ def show_last_picture(environment):
     else:
         lg.warning("No picture taken yet=>Take one !")
 
-#environment["browsing_down_bar"]
-
 def browse_pictures(environment):
     """Function that handle the scenario take a picture"""
     lg.info("SCENARIO : Browse pictures")
@@ -601,8 +536,6 @@ def browse_pictures(environment):
     #lg.info("len(all_montages_filename):"+str(len(all_montages_filename)))
     pointer = len(all_montages_filename) - 1
     event_get = EVENT_TYPE_BROWSE_PICTURES
-
-
     show_image(environment, environment["background_browse_filename"])
     width = 1600
     height = 900
@@ -698,14 +631,14 @@ def parse_arguments():
     )
 
     parser.add_argument(
-        '-m', '--message',
-        help="message to print",
+        '-m', '--the_message',
+        help="the_message to print",
         type=str,
         default="hello world"
     )
     parser.add_argument(
         '-c', '--count',
-        help="number of time to print the message, default:1",
+        help="number of time to print the the_message, default:1",
         type=int,
         default=1
     )
@@ -738,8 +671,8 @@ if __name__ == '__main__':
     try:
         # instruction qui risque de lever une erreur
         ARGUMENTS = parse_arguments()
-        #THE_DEBUG_FORMAT = '%(relativeCreated)6d %(threadName)s %(message)s'
-        THE_DEBUG_FORMAT = '%(asctime)s:%(levelname)s-%(message)s'
+        #THE_DEBUG_FORMAT = '%(relativeCreated)6d %(threadName)s %(the_message)s'
+        THE_DEBUG_FORMAT = '%(asctime)s:%(levelname)s-%(the_message)s'
         THE_DEBUG_FILENAME = ARGUMENTS.log
         THE_DEBUG_LEVEL = lg.INFO
         if ARGUMENTS.verbose:
