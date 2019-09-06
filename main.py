@@ -552,7 +552,7 @@ def browse_pictures(environment):
 
 def play_a_sound(filepath):
     """play a sound file"""
-    os.system("aplay "+str(filepath)+" &")
+    os.system("aplay -q "+str(filepath)+" &")
 
 def main_pygame(environment):
     """pygame main function"""
