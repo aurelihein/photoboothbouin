@@ -88,6 +88,7 @@ def init_environment():
     environment["output_montages_photos_folder"] = "output_photos/montages"
     environment["tmp_photo_print_path"] = "/tmp/tempprint.png"
     environment["template_path"] = "images/template.png"
+    environment["start_sound"] = "sounds/polaroid.wav"
     environment["shoot_sound"] = "sounds/double_shoots.wav"
     environment["last_taken_picture_path"] = None
     result = subprocess.check_output("ls -lat "+str(environment["output_montages_photos_folder"])+" | head -2 | tail -1 | awk '{print $9}'", shell=True)
@@ -498,6 +499,7 @@ def take_a_picture(environment, part):
     filename_without_extension = os.path.join(environment["output_photos_folder"],str(ts)+'-photo')
     filename = filename_without_extension+".jpg"
     #filename = filename_without_extension+".png"
+    play_a_sound(environment["shoot_sound"])
     environment["camera_pointer"].capture(filename, 'jpeg', use_video_port=True)
     environment["camera_pointer"].stop_preview()
     ShowPicture(environment, filename, 2)
@@ -613,7 +615,7 @@ def play_a_sound(filepath):
 
 def main_pygame(environment):
     """pygame main function"""
-    play_a_sound(environment["shoot_sound"])
+    play_a_sound(environment["start_sound"])
     creation_montage_start_screen(environment, environment["last_taken_picture_path"])
     while True:
         show_image(environment, environment["start_picture_filename"])
