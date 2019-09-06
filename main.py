@@ -84,7 +84,7 @@ def init_environment():
     environment["page_flip_sound_back"] = "sounds/page_flip_back.wav"
 
     environment["printer_selected"] = "hp_locale"
-    environment["printer_options"] = {'media':'A6','print-quality':'3'}
+    environment["printer_options"] = {'media':'A6','print-quality':'4'}
     environment["printer_tmp_filepath"] = "/tmp/to_be_printed.png"
     #-o print-quality=3
     #-o print-quality=4
