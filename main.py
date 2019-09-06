@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!!/usr/bin/python3
 # -*- coding: utf-8 -*-
 # author : aurelien BOUIN
 # date : 19/06/2019
@@ -83,9 +83,6 @@ def init_environment():
     environment["page_flip_sound"] = "sounds/page_flip.wav"
     environment["page_flip_sound_back"] = "sounds/page_flip_back.wav"
     environment["last_taken_picture_path"] = None
-    result = subprocess.check_output("ls -lat "+str(environment["output_montages_photos_folder"])+" | head -2 | tail -1 | awk '{print $9}'", shell=True)
-    if result:
-        environment["last_taken_picture_path"] = environment["output_montages_photos_folder"]+"/"+result.rstrip()
 
     #GPIO to use for the BP browse pictures
     environment["bp_to_launch_browse_pictures"] = 23
@@ -119,23 +116,26 @@ def init_environment():
     environment["picture_for_pasting_width_start_screen"] = 0
     environment["picture_for_pasting_height_start_screen"] = 0
 
+    result = get_all_montages(environment)
+    if result:
+        environment["last_taken_picture_path"] = result[0]
     return environment
 
 def compute_picture_size_and_position(environment):
     """ Compute picture size and position to fit the screen """
-    environment["picture_for_pasting_width"] = (environment["screen_w"] - (3 * environment["montage_rebord"])) /2
-    environment["picture_for_pasting_height"] = (environment["screen_h"] - (3 * environment["montage_rebord"])) /2
+    environment["picture_for_pasting_width"] = int((environment["screen_w"] - (3 * environment["montage_rebord"])) /2)
+    environment["picture_for_pasting_height"] = int((environment["screen_h"] - (3 * environment["montage_rebord"])) /2)
 
-    delta_x = environment["picture_for_pasting_width"] + (2 * environment["montage_rebord"])
-    delta_y = environment["montage_rebord"]
+    delta_x = int(environment["picture_for_pasting_width"] + (2 * environment["montage_rebord"]))
+    delta_y = int(environment["montage_rebord"])
     environment["picture_for_pasting_pos1"] = (delta_x, delta_y)
-    delta_y = environment["picture_for_pasting_height"] + (2 * environment["montage_rebord"])
+    delta_y = int(environment["picture_for_pasting_height"] + (2 * environment["montage_rebord"]))
     environment["picture_for_pasting_pos2"] = (delta_x, delta_y)
-    delta_x = environment["montage_rebord"]
+    delta_x = int(environment["montage_rebord"])
     environment["picture_for_pasting_pos3"] = (delta_x, delta_y)
 
-    environment["picture_for_pasting_width_start_screen"] = environment["last_picture_pos_end_in_start_screen"][0] - environment["last_picture_pos_start_in_start_screen"][0]
-    environment["picture_for_pasting_height_start_screen"] = environment["last_picture_pos_end_in_start_screen"][1] - environment["last_picture_pos_start_in_start_screen"][1]
+    environment["picture_for_pasting_width_start_screen"] = int(environment["last_picture_pos_end_in_start_screen"][0] - environment["last_picture_pos_start_in_start_screen"][0])
+    environment["picture_for_pasting_height_start_screen"] = int(environment["last_picture_pos_end_in_start_screen"][1] - environment["last_picture_pos_start_in_start_screen"][1])
     if False:
         lg.info("picture_for_pasting_width:"+str(environment["picture_for_pasting_width"]))
         lg.info("picture_for_pasting_height:"+str(environment["picture_for_pasting_height"]))
@@ -144,8 +144,6 @@ def compute_picture_size_and_position(environment):
         lg.info("picture_for_pasting_pos3:"+str(environment["picture_for_pasting_pos3"]))
         lg.info("picture_for_pasting_width_start_screen:"+str(environment["picture_for_pasting_width_start_screen"]))
         lg.info("picture_for_pasting_height_start_screen:"+str(environment["picture_for_pasting_height_start_screen"]))
-
-
 
 def setup_pygame(environment):
     """ Setup pygame environment """
