@@ -33,3 +33,16 @@ with picamera.PiCamera() as camera:
     start = how_long(start, 'stop_preview')
     camera.close()
     start = how_long(start, 'close')
+
+def other():
+    filename="/home/pi/Desktop/photo_old.jpg"
+    camera = picamera.PiCamera()
+    camera.resolution = (1920, 1080)
+    camera.brightness = 50
+    camera.preview_fullscreen = True
+    camera.framerate = 30
+    camera.video_stabilization = True
+    camera.start_preview()
+    camera.capture(filename, 'jpeg', use_video_port=True)
+    camera.stop_preview()
+    camera.close()

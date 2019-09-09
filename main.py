@@ -67,7 +67,7 @@ def get_all_montages(environment):
     files.sort(key=lambda x: os.path.getmtime(x))
     return files
 
-def init_environment():
+def init_environment(printing_enabled):
     """Function that initialize environment"""
     environment = {}
     environment["start_picture_filename"] = '/tmp/start_camera.jpg'
@@ -90,7 +90,11 @@ def init_environment():
     #-o print-quality=4
     #-o print-quality=5
     #Specifies the output quality - draft (3), normal (4), or best (5).
-
+    environment["printer_enabled"] = printing_enabled
+    if environment["printer_enabled"]:
+        lg.info("Printer is enabled")
+    else:
+        lg.info("Printer is disabled")
     environment["last_taken_picture_path"] = None
 
     #GPIO to use for the BP browse pictures
@@ -104,6 +108,7 @@ def init_environment():
 
     environment["camera_parameters"] = {}
     environment["camera_parameters"]["resolution"] = 1920, 1080
+    environment["camera_parameters"]["framerate"] = 30
     environment["camera_parameters"]["rotation"] = 0
     environment["camera_parameters"]["hflip"] = False
     environment["camera_parameters"]["vflip"] = False
@@ -128,6 +133,7 @@ def init_environment():
     result = get_all_montages(environment)
     if result:
         environment["last_taken_picture_path"] = result[-1]
+
     return environment
 
 def compute_picture_size_and_position(environment):
@@ -183,6 +189,10 @@ def unsetup_rpi_camera(environment):
     if environment["camera_pointer"]:
         environment["camera_pointer"].close()
 
+#https://github.com/contractorwolf/RaspberryPiPhotobooth
+#gphoto2
+#pkill gvfs
+
 def setup_rpi_camera(environment):
     """ Set up RPI camera"""
     environment["camera_pointer"] = picamera.PiCamera()
@@ -195,7 +205,7 @@ def setup_rpi_camera(environment):
     #environment["camera_pointer"].brightness = environment["camera_parameters"]["brightness"]
     environment["camera_pointer"].preview_alpha = environment["camera_parameters"]["preview_alpha"]
     environment["camera_pointer"].preview_fullscreen = environment["camera_parameters"]["preview_fullscreen"]
-    #environment["camera_pointer"].framerate             = 24
+    environment["camera_pointer"].framerate = environment["camera_parameters"]["framerate"]
     #environment["camera_pointer"].sharpness             = 0
     #environment["camera_pointer"].contrast              = 8
     #environment["camera_pointer"].saturation            = 0
@@ -392,7 +402,7 @@ def print_picture(environment, filepath):
     """Print the filepath picture"""
     lg.info("Seems like printing has been asked")
     #Todo handle here
-    if ENABLE_PRINTING:
+    if ENABLE_PRINTING and environment["printer_enabled"]:
         if os.path.isfile(filepath):
             # Open a connection to cups
             conn = cups.Connection()
@@ -627,7 +637,7 @@ def my_main(main_args):
 
     lg.info("camera capture in :"+str(main_args.width)+"x"+str(main_args.height))
     pygame.init()  # Initialise pygame
-    environment = init_environment()
+    environment = init_environment(ARGUMENTS.printer)
     setup_pygame(environment)
     init_folders(environment)
     setup_rpi_gpio(environment)
@@ -650,6 +660,11 @@ def parse_arguments():
         help="Message to print",
         type=str,
         default="hello world"
+    )
+    parser.add_argument(
+        '-p', '--printer',
+        help="Enable printer",
+        action='store_true',
     )
     parser.add_argument(
         '-c', '--count',
