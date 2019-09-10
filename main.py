@@ -34,20 +34,19 @@ ENABLE_PRINTING = True
 
 import argparse
 import logging as lg
-import picamera
-import pygame
 import threading
 import time
 import os
-import glob
 import subprocess
+import glob
+from shutil import copyfile
 import PIL.Image
+from PIL import Image, ImageDraw
+import pygame
+from pygame.locals import *
 import cups
 import RPi.GPIO as GPIO
-
-from shutil import copyfile
-from pygame.locals import *
-from PIL import Image, ImageDraw
+import picamera
 
 EVENT_NO_TYPE = 0
 EVENT_TYPE_TAKE_PICTURE = 1
@@ -84,7 +83,7 @@ def init_environment(printing_enabled):
     environment["page_flip_sound_back"] = "sounds/page_flip_back.wav"
 
     environment["printer_selected"] = "hp_locale"
-    environment["printer_options"] = {'media':'A6','print-quality':'4'}
+    environment["printer_options"] = {'media':'A6', 'print-quality':'4'}
     environment["printer_tmp_filepath"] = "/tmp/to_be_printed.png"
     #-o print-quality=3
     #-o print-quality=4
@@ -97,10 +96,28 @@ def init_environment(printing_enabled):
         lg.info("Printer is disabled")
     environment["last_taken_picture_path"] = None
 
+    #GPIO to use for relay of spot left
+    environment["relay_spot_left"] = 17
+
+    #GPIO to use for relay of spot right
+    environment["relay_spot_right"] = 18
+
+    #GPIO to use for relay of unknown function
+    environment["relay_unknown"] = 19
+
+    #GPIO to use for relay of BP browse pictures
+    environment["relay_bp_to_launch_browse_pictures"] = 20
+
+    #GPIO to use for relay of BP take pictures
+    environment["relay_bp_to_launch_take_pictures"] = 21
+
+    #GPIO to use for relay of BP show last picture
+    environment["relay_bp_to_launch_show_last_picture"] = 22
+
     #GPIO to use for the BP browse pictures
     environment["bp_to_launch_browse_pictures"] = 23
-    #GPIO to use for the BP take picture
-    environment["bp_to_launch_take_picture"] = 24
+    #GPIO to use for the BP take pictures
+    environment["bp_to_launch_take_pictures"] = 24
     #GPIO to use for the BP show last picture
     environment["bp_to_launch_show_last_picture"] = 25
     #GPIO to use for restarting the system
@@ -167,9 +184,9 @@ def setup_pygame(environment):
     # initialise pygame
     pygame.mouse.set_visible(False) #hide the mouse cursor
 
-    infoObject = pygame.display.Info()
-    environment["screen_w"] = infoObject.current_w # save screen width
-    environment["screen_h"] = infoObject.current_h # save screen height
+    info_object = pygame.display.Info()
+    environment["screen_w"] = info_object.current_w # save screen width
+    environment["screen_h"] = info_object.current_h # save screen height
 
     environment["screen_pointer"] = pygame.display.set_mode((environment["screen_w"], environment["screen_h"]), pygame.FULLSCREEN)  # Full screen
     background = pygame.Surface(environment["screen_pointer"].get_size())  # Create the background object
@@ -224,8 +241,23 @@ def setup_rpi_gpio(environment):
     """ The RPI GPIO setup"""
     #Setup GPIO for BP
     GPIO.setmode(GPIO.BCM)
+
+    environment["relay_spot_left"] = 17
+    environment["relay_spot_right"] = 18
+    environment["relay_unknown"] = 19
+    environment["relay_bp_to_launch_browse_pictures"] = 20
+    environment["relay_bp_to_launch_take_pictures"] = 21
+    environment["relay_bp_to_launch_show_last_picture"] = 22
+
+    GPIO.setup(environment["relay_spot_left"], GPIO.OUT, initial=GPIO.LOW)
+    GPIO.setup(environment["relay_spot_right"], GPIO.OUT, initial=GPIO.LOW)
+    GPIO.setup(environment["relay_unknown"], GPIO.OUT, initial=GPIO.LOW)
+    GPIO.setup(environment["relay_bp_to_launch_browse_pictures"], GPIO.OUT, initial=GPIO.LOW)
+    GPIO.setup(environment["relay_bp_to_launch_take_pictures"], GPIO.OUT, initial=GPIO.LOW)
+    GPIO.setup(environment["relay_bp_to_launch_show_last_picture"], GPIO.OUT, initial=GPIO.LOW)
+
     GPIO.setup(environment["bp_to_launch_browse_pictures"], GPIO.IN, pull_up_down=GPIO.PUD_UP)
-    GPIO.setup(environment["bp_to_launch_take_picture"], GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    GPIO.setup(environment["bp_to_launch_take_pictures"], GPIO.IN, pull_up_down=GPIO.PUD_UP)
     GPIO.setup(environment["bp_to_launch_show_last_picture"], GPIO.IN, pull_up_down=GPIO.PUD_UP)
     GPIO.setup(environment["bp_to_restart"], GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
@@ -319,24 +351,33 @@ def show_image(environment, image_path):
 def print_event(value):
     """Print event value"""
     if value == EVENT_TYPE_STOP:
-        print("EVENT_TYPE_STOP:"+str(value))
+        lg.info("EVENT_TYPE_STOP:"+str(value))
         return
     if value == EVENT_TYPE_TAKE_PICTURE:
-        print("EVENT_TYPE_TAKE_PICTURE:"+str(value))
+        lg.info("EVENT_TYPE_TAKE_PICTURE:"+str(value))
         return
     if value == EVENT_TYPE_SHOW_LAST_PICTURE:
-        print("EVENT_TYPE_SHOW_LAST_PICTURE:"+str(value))
+        lg.info("EVENT_TYPE_SHOW_LAST_PICTURE:"+str(value))
         return
     if value == EVENT_TYPE_BROWSE_PICTURES:
-        print("EVENT_TYPE_BROWSE_PICTURES:"+str(value))
+        lg.info("EVENT_TYPE_BROWSE_PICTURES:"+str(value))
         return
     if value == EVENT_TYPE_RESTART:
-        print("EVENT_TYPE_RESTART:"+str(value))
+        lg.info("EVENT_TYPE_RESTART:"+str(value))
         return
     if value == EVENT_TYPE_STOP:
-        print("EVENT_TYPE_STOP:"+str(value))
+        lg.info("EVENT_TYPE_STOP:"+str(value))
         return
-    print("EVENT_NO_TYPE:"+str(value))
+    lg.info("EVENT_NO_TYPE:"+str(value))
+
+def execute_relay_command_with_dict(what_to_do=None):
+    """
+    Function to turn off/on all relays
+    what_to_do : {17:True, 18:False}
+    """
+    if what_to_do:
+        for one in what_to_do.keys():
+            GPIO.output(one, what_to_do[one])
 
 def wait_for_event(environment, during_seconds):
     """Wait for BP events"""
@@ -349,7 +390,7 @@ def wait_for_event(environment, during_seconds):
     while loop:
         if not GPIO.input(environment["bp_to_launch_browse_pictures"]):
             return EVENT_TYPE_BROWSE_PICTURES
-        if not GPIO.input(environment["bp_to_launch_take_picture"]):
+        if not GPIO.input(environment["bp_to_launch_take_pictures"]):
             return EVENT_TYPE_TAKE_PICTURE
         if not GPIO.input(environment["bp_to_launch_show_last_picture"]):
             return EVENT_TYPE_SHOW_LAST_PICTURE
@@ -378,24 +419,34 @@ def wait_for_event(environment, during_seconds):
 
 def wait_for_allow_printing_event(environment, seconds_to_wait):
     """Wait for button press to allow to print image"""
+    command_on = {}
+    command_on[environment["relay_bp_to_launch_take_pictures"]] = True
+    command_off = {}
+    command_off[environment["relay_bp_to_launch_take_pictures"]] = False
+    execute_relay_command_with_dict(command_on)
 
     count_down_cent_milliseconds = seconds_to_wait*10
     while count_down_cent_milliseconds:
         if count_down_cent_milliseconds % 10:
             #update_display(environment, "", "Appuyez sur le bouton pour imprimer", "", str(int(count_down_cent_milliseconds/10)+1), False)
             update_display(environment, "", "Appuyez sur le bouton pour imprimer", str(int(count_down_cent_milliseconds/10)+1), "", False)
-        if not GPIO.input(environment["bp_to_launch_take_picture"]):
+        if not GPIO.input(environment["bp_to_launch_take_pictures"]):
+            execute_relay_command_with_dict(command_off)
             return True
         if not GPIO.input(environment["bp_to_restart"]):
+            execute_relay_command_with_dict(command_off)
             return False
         for event in pygame.event.get():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_DOWN:
+                    execute_relay_command_with_dict(command_off)
                     return True
                 if event.key == pygame.K_ESCAPE:
+                    execute_relay_command_with_dict(command_off)
                     return False
         time.sleep(0.1)
         count_down_cent_milliseconds -= 1
+    execute_relay_command_with_dict(command_off)
     return False
 
 def print_picture(environment, filepath):
@@ -411,7 +462,7 @@ def print_picture(environment, filepath):
             # select printer 0
             printer_name = environment["printer_selected"]
             my_printer = printers.get(environment["printer_selected"], None)
-            if my_printer is None :
+            if my_printer is None:
                 lg.critical("The printer "+str(printer_name)+" does not exists in list:"+str(printers.keys()))
                 update_display(environment, "", "!! Impression impossible !!", "", "", False)
                 time.sleep(1)
@@ -431,7 +482,7 @@ def print_picture(environment, filepath):
                 time.sleep(1)
             else:
                 update_display(environment, "", "Impression en cours...", "", "", False)
-                tmp_filepath = creation_montage_to_print_A_format(environment, filepath, environment["printer_tmp_filepath"])
+                tmp_filepath = creation_montage_to_print_a_format(filepath, environment["printer_tmp_filepath"])
                 conn.printFile(printer_name, tmp_filepath, "PhotoBoothBouin", environment["printer_options"])
                 time.sleep(20)
     else:
@@ -444,6 +495,13 @@ def print_picture(environment, filepath):
 def take_a_picture(environment, part):
     """Take a picture"""
 
+    command_on = {}
+    command_on[environment["relay_spot_left"]] = True
+    command_on[environment["relay_spot_right"]] = True
+    command_off = {}
+    command_off[environment["relay_spot_left"]] = False
+    command_off[environment["relay_spot_right"]] = False
+
     update_display(environment, "", "", "", str(part), False)
     time.sleep(1)
     update_display(environment, "", "", "", "", False)
@@ -453,19 +511,26 @@ def take_a_picture(environment, part):
     pygame.display.flip()
     environment["camera_pointer"].start_preview()
 
-    for x in range(3, -1, -1):
-        if x == 0:
+    for one in range(3, -1, -1):
+        if one == 0:
             update_display(environment, "black", "PRENEZ LA POSE ", "", "", False)
         else:
-            update_display(environment, "black", "PREPAREZ VOUS A PRENDRE LA POSE ("+str(part)+")", "", str(x), False)
-        time.sleep(1)
+            update_display(environment, "black", "PREPAREZ VOUS A PRENDRE LA POSE ("+str(part)+")", "", str(one), False)
+            time.sleep(1)
+
+    execute_relay_command_with_dict(command_on)
+    time.sleep(0.3)
+    execute_relay_command_with_dict(command_off)
+    time.sleep(0.3)
 
     update_display(environment, "", "", "", "", False)
-    ts = time.strftime('%Y%m%d_%H%M%S', time.localtime())
-    filename = os.path.join(environment["output_photos_folder"], str(ts)+'-photo.jpg')
+    timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
+    filename = os.path.join(environment["output_photos_folder"], str(timestamp)+'-photo.jpg')
+    execute_relay_command_with_dict(command_on)
     play_a_sound(environment["shoot_sound"])
     environment["camera_pointer"].capture(filename, 'jpeg', use_video_port=True)
     environment["camera_pointer"].stop_preview()
+    execute_relay_command_with_dict(command_off)
     show_image(environment, filename)
     time.sleep(SECONDS_TO_WAIT_TO_SHOW_PICTURE_AFTER_A_SHOOT)
     return filename
@@ -489,8 +554,8 @@ def creation_montage(environment, filename1, filename2, filename3):
     background_image.paste(image3, environment["picture_for_pasting_pos3"])
 
     # Create the final filename
-    ts = time.strftime('%Y%m%d_%H%M%S', time.localtime())
-    montage_filename = os.path.join(environment["output_montages_photos_folder"], str(ts)+"-montage.png")
+    timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
+    montage_filename = os.path.join(environment["output_montages_photos_folder"], str(timestamp)+"-montage.png")
     # Save it to the usb drive
     background_image.save(montage_filename)
     return montage_filename
@@ -506,10 +571,10 @@ def creation_montage_start_screen(environment, last_picture_filename):
     copyfile(environment["original_start_picture_filename"], environment["start_picture_filename"])
     return False
 
-def creation_montage_to_print_A_format(environment, filepath, tmp_filepath):
+def creation_montage_to_print_a_format(filepath, tmp_filepath):
     """Creation du montage photo d'image de depart"""
     if filepath:
-        background_image = PIL.Image.new("RGB", (1920,1358), color = 'white')
+        background_image = PIL.Image.new("RGB", (1920, 1358), color='white')
         image1 = PIL.Image.open(filepath)
         background_image.paste(image1, (0, 139))
         background_image.save(tmp_filepath)
@@ -573,7 +638,15 @@ def browse_pictures(environment):
             pointer = len(all_montages_filename)-1
         #show_image(environment, all_montages_filename[pointer])
         show_image_with_size_and_pos(environment, all_montages_filename[pointer], width, height, delta_x, delta_y)
+        command_on = {}
+        command_on[environment["relay_bp_to_launch_browse_pictures"]] = True
+        command_on[environment["relay_bp_to_launch_show_last_picture"]] = True
+        command_off = {}
+        command_off[environment["relay_bp_to_launch_browse_pictures"]] = False
+        command_off[environment["relay_bp_to_launch_show_last_picture"]] = False
+        execute_relay_command_with_dict(command_on)
         event_get = wait_for_event(environment, SECONDS_TO_WAIT_IN_BROWSING_MODE)
+        execute_relay_command_with_dict(command_off)
         #print_event(event_get)
         if event_get == EVENT_TYPE_BROWSE_PICTURES:
             pointer -= 1
@@ -595,7 +668,17 @@ def main_pygame(environment):
 
     while True:
         show_image(environment, environment["start_picture_filename"])
+        command_on = {}
+        command_on[environment["relay_bp_to_launch_browse_pictures"]] = True
+        command_on[environment["relay_bp_to_launch_take_pictures"]] = True
+        command_on[environment["relay_bp_to_launch_show_last_picture"]] = True
+        command_off = {}
+        command_off[environment["relay_bp_to_launch_browse_pictures"]] = False
+        command_off[environment["relay_bp_to_launch_take_pictures"]] = False
+        command_off[environment["relay_bp_to_launch_show_last_picture"]] = False
+        execute_relay_command_with_dict(command_on)
         event_get = wait_for_event(environment, 0)
+        execute_relay_command_with_dict(command_off)
         #print_event(event_get)
         time.sleep(0.2)
         if event_get == EVENT_NO_TYPE:
