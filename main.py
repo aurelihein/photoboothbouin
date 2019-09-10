@@ -22,6 +22,9 @@
 #pip install pip-autoremove
 ## remove "somepackage" plus its dependencies:
 #pip-autoremove somepackage -y
+
+#To start it automatically at start, think about adding sudo crontab -e @reboot ...
+
 """
 Program that display something
 """
@@ -66,7 +69,7 @@ def get_all_montages(environment):
     files.sort(key=lambda x: os.path.getmtime(x))
     return files
 
-def init_environment(printing_enabled):
+def init_environment(main_args):
     """Function that initialize environment"""
     environment = {}
     environment["start_picture_filename"] = '/tmp/start_camera.jpg'
@@ -89,9 +92,14 @@ def init_environment(printing_enabled):
     #-o print-quality=4
     #-o print-quality=5
     #Specifies the output quality - draft (3), normal (4), or best (5).
-    environment["printer_enabled"] = printing_enabled
+    environment["reboot_enabled"] = main_args.reboot
+    if environment["reboot_enabled"]:
+        lg.warning("Reboot is enabled")
+    else:
+        lg.info("Reboot is disabled")
+    environment["printer_enabled"] = main_args.printer
     if environment["printer_enabled"]:
-        lg.info("Printer is enabled")
+        lg.warning("Printer is enabled")
     else:
         lg.info("Printer is disabled")
     environment["last_taken_picture_path"] = None
@@ -248,6 +256,8 @@ def setup_rpi_gpio(environment):
     environment["relay_bp_to_launch_browse_pictures"] = 20
     environment["relay_bp_to_launch_take_pictures"] = 21
     environment["relay_bp_to_launch_show_last_picture"] = 22
+
+    GPIO.setwarnings(False)
 
     GPIO.setup(environment["relay_spot_left"], GPIO.OUT, initial=GPIO.LOW)
     GPIO.setup(environment["relay_spot_right"], GPIO.OUT, initial=GPIO.LOW)
@@ -690,7 +700,9 @@ def main_pygame(environment):
         elif event_get == EVENT_TYPE_BROWSE_PICTURES:
             browse_pictures(environment)
         elif event_get == EVENT_TYPE_RESTART:
-            lg.info("Ask to restart the board")
+            lg.info("Ask to restart the system")
+            if environment["reboot_enabled"]:
+                os.system("sudo reboot")
             return
         elif event_get == EVENT_TYPE_STOP:
             lg.critical("Ask to stop the application")
@@ -720,7 +732,7 @@ def my_main(main_args):
 
     lg.info("camera capture in :"+str(main_args.width)+"x"+str(main_args.height))
     pygame.init()  # Initialise pygame
-    environment = init_environment(ARGUMENTS.printer)
+    environment = init_environment(main_args)
     setup_pygame(environment)
     init_folders(environment)
     setup_rpi_gpio(environment)
@@ -737,7 +749,6 @@ def parse_arguments():
     parser = argparse.ArgumentParser(
         description="simple script to print something"
     )
-
     parser.add_argument(
         '-m', '--message',
         help="Message to print",
@@ -747,6 +758,11 @@ def parse_arguments():
     parser.add_argument(
         '-p', '--printer',
         help="Enable printer",
+        action='store_true',
+    )
+    parser.add_argument(
+        '-r', '--reboot',
+        help="Enable reboot",
         action='store_true',
     )
     parser.add_argument(
