@@ -72,7 +72,7 @@ def get_all_montages(environment):
 def init_environment(main_args):
     """Function that initialize environment"""
     environment = {}
-    environment["output_base_save_dir"] = "/media/pi/aurelienhd/"
+    environment["output_base_save_dir"] = "/media/pi/aurelienhd/photobooth/"
     environment["start_picture_filename"] = '/tmp/start_camera.jpg'
     environment["original_start_picture_filename"] = 'images/start_camera.jpg'
     environment["background_browse_filename"] = 'images/browse_background.jpg'
