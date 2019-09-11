@@ -475,7 +475,7 @@ def print_picture(environment, filepath):
             my_printer = printers.get(environment["printer_selected"], None)
             if my_printer is None:
                 lg.critical("The printer "+str(printer_name)+" does not exists in list:"+str(printers.keys()))
-                update_display(environment, "", "!! Impression impossible !!", "", "", False)
+                update_display(environment, "", "!! Merci pour vos photos !!", "", "", False)
                 time.sleep(1)
                 update_display(environment, "", "Nous vous enverrons vos photos...", "", "", False)
                 time.sleep(1)
@@ -487,7 +487,7 @@ def print_picture(environment, filepath):
                 #show_image(environment, filepath)
                 #time.sleep(3)
                 conn.enablePrinter(printer_name)
-                update_display(environment, "", "!! Impression impossible !!", "", "", False)
+                update_display(environment, "", "!! Merci pour vos photos !!", "", "", False)
                 time.sleep(1)
                 update_display(environment, "", "Nous vous enverrons vos photos...", "", "", False)
                 time.sleep(1)
@@ -498,7 +498,7 @@ def print_picture(environment, filepath):
                 time.sleep(20)
     else:
         play_a_sound(environment["buzz_sound"])
-        update_display(environment, "", "!! Impression desactivee !!", "", "", False)
+        update_display(environment, "", "!! Merci pour vos photos !!", "", "", False)
         time.sleep(1)
         update_display(environment, "", "Nous vous enverrons vos photos...", "", "", False)
         time.sleep(1)
@@ -614,7 +614,7 @@ def take_pictures(environment):
         if printing_asked:
             print_picture(environment, environment["last_taken_picture_path"])
         else:
-            update_display(environment, "", "!! Impression impossible !!", "", "", False)
+            update_display(environment, "", "!! Merci pour vos photos !!", "", "", False)
             time.sleep(1)
             update_display(environment, "", "Nous vous enverrons vos photos...", "", "", False)
             time.sleep(1)
@@ -632,7 +632,7 @@ def show_last_picture(environment):
             if printing_asked:
                 print_picture(environment, environment["last_taken_picture_path"])
         else:
-            update_display(environment, "", "!! Impression impossible !!", "", "", False)
+            update_display(environment, "", "!! Merci pour vos photos !!", "", "", False)
             time.sleep(1)
             update_display(environment, "", "Nous vous enverrons vos photos...", "", "", False)
             time.sleep(1)
