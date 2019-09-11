@@ -609,9 +609,15 @@ def take_pictures(environment):
 
     show_image(environment, environment["last_taken_picture_path"])
     time.sleep(SECONDS_TO_WAIT_TO_SHOW_PICTURE_READY_TO_PRINT)
-    printing_asked = wait_for_allow_printing_event(environment, 5)
-    if printing_asked:
-        print_picture(environment, environment["last_taken_picture_path"])
+    if environment["printer_enabled"]:
+        printing_asked = wait_for_allow_printing_event(environment, 5)
+        if printing_asked:
+            print_picture(environment, environment["last_taken_picture_path"])
+        else:
+            update_display(environment, "", "!! Impression impossible !!", "", "", False)
+            time.sleep(1)
+            update_display(environment, "", "Nous vous enverrons vos photos...", "", "", False)
+            time.sleep(1)
 
     creation_montage_start_screen(environment, environment["last_taken_picture_path"])
 
@@ -621,9 +627,15 @@ def show_last_picture(environment):
     if environment["last_taken_picture_path"]:
         show_image(environment, environment["last_taken_picture_path"])
         time.sleep(SECONDS_TO_WAIT_TO_SHOW_PICTURE_READY_TO_PRINT)
-        printing_asked = wait_for_allow_printing_event(environment, 5)
-        if printing_asked:
-            print_picture(environment, environment["last_taken_picture_path"])
+        if environment["printer_enabled"]:
+            printing_asked = wait_for_allow_printing_event(environment, 5)
+            if printing_asked:
+                print_picture(environment, environment["last_taken_picture_path"])
+        else:
+            update_display(environment, "", "!! Impression impossible !!", "", "", False)
+            time.sleep(1)
+            update_display(environment, "", "Nous vous enverrons vos photos...", "", "", False)
+            time.sleep(1)
     else:
         lg.warning("No picture taken yet=>Take one !")
 
