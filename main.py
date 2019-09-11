@@ -72,11 +72,12 @@ def get_all_montages(environment):
 def init_environment(main_args):
     """Function that initialize environment"""
     environment = {}
+    environment["output_base_save_dir"] = "/media/pi/aurelienhd/"
     environment["start_picture_filename"] = '/tmp/start_camera.jpg'
     environment["original_start_picture_filename"] = 'images/start_camera.jpg'
     environment["background_browse_filename"] = 'images/browse_background.jpg'
-    environment["output_photos_folder"] = "output_photos/singles_photos"
-    environment["output_montages_photos_folder"] = "output_photos/montages"
+    environment["output_photos_folder"] = environment["output_base_save_dir"]+"output_photos/singles_photos"
+    environment["output_montages_photos_folder"] = environment["output_base_save_dir"]+"output_photos/montages"
     environment["tmp_photo_print_path"] = "/tmp/tempprint.png"
     environment["template_path"] = "images/template.png"
     environment["start_sound"] = "sounds/polaroid.wav"
