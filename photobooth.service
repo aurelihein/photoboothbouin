@@ -1,0 +1,9 @@
+[Unit]
+Description= Phobooth service
+
+[Service]
+ExecStart=/home/pi/Desktop/launch_photobooth.sh
+ExecStop=/usr/bin/pkill -f main.py
+
+[Install]
+WantedBy=default.target
