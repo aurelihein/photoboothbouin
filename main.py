@@ -198,6 +198,7 @@ def setup_pygame(environment):
     environment["screen_h"] = info_object.current_h # save screen height
 
     environment["screen_pointer"] = pygame.display.set_mode((environment["screen_w"], environment["screen_h"]), pygame.FULLSCREEN)  # Full screen
+    environment["screen_pointer"].fill([255, 255, 255])
     background = pygame.Surface(environment["screen_pointer"].get_size())  # Create the background object
     environment["background_screen_pointer"] = background.convert()  # Convert it to a background
 
