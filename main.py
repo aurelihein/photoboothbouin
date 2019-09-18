@@ -40,6 +40,8 @@ import logging as lg
 import threading
 import time
 import os
+import sys
+import signal
 import subprocess
 import glob
 from shutil import copyfile
@@ -762,12 +764,14 @@ def my_main(main_args):
 
     lg.info("camera capture in :"+str(main_args.width)+"x"+str(main_args.height))
     _disable_text_cursor_blinking()
-    _disable_screen_blanking()
+    #_disable_screen_blanking()
     pygame.init()  # Initialise pygame
     environment = init_environment(main_args)
     setup_pygame(environment)
     init_folders(environment)
     setup_rpi_gpio(environment)
+    #before unsetup in case a remaining configuration still exists
+    unsetup_rpi_camera(environment)
     setup_rpi_camera(environment)
     compute_picture_size_and_position(environment)
     main_thread = LaunchThread(main_pygame, environment)
@@ -828,7 +832,18 @@ def parse_arguments():
     )
     return parser.parse_args()
 
+def dont_quit(signal, frame):
+    print('Catch signal in dont_quit:'+str(signal))
+
+def please_quit(signal, frame):
+    print('Catch signal in please_quit:'+str(signal))
+    pygame.quit()
+    sys.exit()
+
 if __name__ == '__main__':
+    signal.signal(signal.SIGHUP, dont_quit)
+    signal.signal(signal.SIGTERM, please_quit)
+    signal.signal(signal.SIGINT, please_quit)
     try:
         # instruction qui risque de lever une erreur
         ARGUMENTS = parse_arguments()

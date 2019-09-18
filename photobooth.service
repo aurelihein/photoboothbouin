@@ -2,8 +2,13 @@
 Description= Phobooth service
 
 [Service]
-ExecStart=/home/pi/Desktop/launch_photobooth.sh
-ExecStop=/usr/bin/pkill -f main.py
+#Environment=Display=0:0
+WorkingDirectory=/home/pi/photobooth/photoboothbouin/
+ExecStartPre=/bin/sleep 25
+ExecStart=/usr/bin/python3 main.py -r
+#ExecStop=/usr/bin/pkill python3
+StandardOutput=syslog
+StandardError=syslog
 
 [Install]
 WantedBy=default.target
