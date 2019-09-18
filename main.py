@@ -62,6 +62,22 @@ SECONDS_TO_WAIT_TO_SHOW_PICTURE_READY_TO_PRINT = 5
 SECONDS_TO_WAIT_TO_SHOW_PICTURE_AFTER_A_SHOOT = 2
 SECONDS_TO_WAIT_IN_BROWSING_MODE = 5
 
+def _disable_text_cursor_blinking():
+    command_to_run = ["/usr/bin/sudo", "sh", "-c", "echo 0 > /sys/class/graphics/fbcon/cursor_blink"]
+    try:
+        output = subprocess.check_output(command_to_run, universal_newlines = True)
+        lg.info("_disable_text_cursor_blinking succeeded! Output was:\n"+str(output))
+    except subprocess.CalledProcessError:
+        lg.critical("_disable_text_cursor_blinking failed!")
+
+def _disable_screen_blanking():
+    command_to_run = ["/usr/bin/setterm", "--blank", "0"]
+    try:
+        output = subprocess.check_output(command_to_run, universal_newlines = True)
+        lg.info("_disable_screen_blanking succeeded! Output was:\n"+str(output))
+    except subprocess.CalledProcessError:
+        lg.critical("_disable_screen_blanking failed!")
+
 def get_all_montages(environment):
     """Get all montages files"""
     #return subprocess.check_output("ls -lat "+str(environment["output_montages_photos_folder"])+" | grep -v d | awk '{print $9}'", shell=True)
@@ -745,6 +761,8 @@ def my_main(main_args):
     # launch the main thread
 
     lg.info("camera capture in :"+str(main_args.width)+"x"+str(main_args.height))
+    _disable_text_cursor_blinking()
+    _disable_screen_blanking()
     pygame.init()  # Initialise pygame
     environment = init_environment(main_args)
     setup_pygame(environment)
