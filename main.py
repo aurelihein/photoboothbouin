@@ -1,7 +1,7 @@
 #!!/usr/bin/python3
 # -*- coding: utf-8 -*-
 # author : aurelien BOUIN
-# date : 19/06/2019
+# date : 21/09/2019
 # VIRTUALENV
 # pip in virtualenv :
 # virtualenv -p python3 new_virtualenv
@@ -90,7 +90,10 @@ def get_all_montages(environment):
 def init_environment(main_args):
     """Function that initialize environment"""
     environment = {}
-    environment["output_base_save_dir"] = "/media/pi/aurelienhd/photobooth/"
+    environment["output_base_save_dir"] = "/media/pi/aurelienhd/"
+    #Check if the output folder exists if it is a harddrive
+    if not os.path.isdir(environment["output_base_save_dir"]):
+        environment["output_base_save_dir"] = "/home/pi/photobooth_output/"
     environment["start_picture_filename"] = '/tmp/start_camera.jpg'
     environment["original_start_picture_filename"] = 'images/start_camera.jpg'
     environment["background_browse_filename"] = 'images/browse_background.jpg'
